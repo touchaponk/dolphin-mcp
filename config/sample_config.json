@@ -1,0 +1,12 @@
+{
+    "mcpServers": {
+        "dolphin-db": {
+            "command": "uvx",
+            "args": [
+                "mcp-server-sqlite",
+                "--db-path",
+                "~/.dolphin/dolphin.db"
+            ]
+        }
+    }
+}
