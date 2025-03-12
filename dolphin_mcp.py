@@ -283,7 +283,15 @@ async def run():
 
     # Build initial conversation
     conversation = [
-        {"role": "system", "content": "You are a helpful assistant with multiple specialized tools."},
+        {
+            "role": "system",
+            "content": (
+                "You are a helpful assistant with multiple specialized tools. "
+                "Please narrate each step you take in a friendly, conversational style, "
+                "explaining why you're calling each tool and summarizing the tool's JSON results for the user. "
+                "After you're done calling tools, provide a final, well-structured summary."
+            )
+        },
         {"role": "user", "content": user_query}
     ]
 
