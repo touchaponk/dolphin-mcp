@@ -20,15 +20,99 @@ The project demonstrates how to:
 - Natural language interface powered by OpenAI's API
 - Conversational, step-by-step explanation of tool usage and results
 
+## Prerequisites
+
+Before installing Dolphin MCP, ensure you have the following prerequisites installed:
+
+1. **Python 3.8+**
+2. **SQLite** - A lightweight database used by the demo
+3. **uv/uvx** - A fast Python package installer and resolver
+
+### Setting up Prerequisites
+
+#### Windows
+
+1. **Python 3.8+**:
+   - Download and install from [python.org](https://www.python.org/downloads/windows/)
+   - Ensure you check "Add Python to PATH" during installation
+
+2. **SQLite**:
+   - Download the precompiled binaries from [SQLite website](https://www.sqlite.org/download.html)
+   - Choose the "Precompiled Binaries for Windows" section and download the sqlite-tools zip file
+   - Extract the files to a folder (e.g., `C:\sqlite`)
+   - Add this folder to your PATH:
+     - Open Control Panel > System > Advanced System Settings > Environment Variables
+     - Edit the PATH variable and add the path to your SQLite folder
+     - Verify installation by opening Command Prompt and typing `sqlite3 --version`
+
+3. **uv/uvx**:
+   - Open PowerShell as Administrator and run:
+     ```
+     curl -sSf https://install.ultraviolet.rs/windows | powershell
+     ```
+   - Restart your terminal and verify installation with `uv --version`
+
+#### macOS
+
+1. **Python 3.8+**:
+   - Install using Homebrew:
+     ```
+     brew install python
+     ```
+
+2. **SQLite**:
+   - SQLite comes pre-installed on macOS, but you can update it using Homebrew:
+     ```
+     brew install sqlite
+     ```
+   - Verify installation with `sqlite3 --version`
+
+3. **uv/uvx**:
+   - Install using Homebrew:
+     ```
+     brew install ultraviolet/uv/uv
+     ```
+   - Or use the official installer:
+     ```
+     curl -sSf https://install.ultraviolet.rs/mac | bash
+     ```
+   - Verify installation with `uv --version`
+
+#### Linux (Ubuntu/Debian)
+
+1. **Python 3.8+**:
+   ```
+   sudo apt update
+   sudo apt install python3 python3-pip
+   ```
+
+2. **SQLite**:
+   ```
+   sudo apt update
+   sudo apt install sqlite3
+   ```
+   - Verify installation with `sqlite3 --version`
+
+3. **uv/uvx**:
+   ```
+   curl -sSf https://install.ultraviolet.rs/linux | bash
+   ```
+   - Verify installation with `uv --version`
+
 ## Installation
 
 1. Clone this repository:
    ```
-   git clone https://github.com/yourusername/dolphin-mcp.git
+   git clone https://github.com/cognitivecomputations/dolphin-mcp.git
    cd dolphin-mcp
    ```
 
-2. Install dependencies:
+2. Install dependencies using uv:
+   ```
+   uv pip install -r requirements.txt
+   ```
+   
+   Alternatively, you can use pip:
    ```
    pip install -r requirements.txt
    ```
