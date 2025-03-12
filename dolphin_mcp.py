@@ -9,33 +9,39 @@ import dotenv
 
 from typing import Any, Dict, List, Optional
 
-# ================
+############################
 # Provider imports
-# ================
+############################
 import openai
-from openai import OpenAI, APIError, RateLimitError  # to catch exceptions
-from anthropic import Anthropic, AsyncAnthropic, APIError as AnthropicAPIError
+from openai import OpenAI, APIError, RateLimitError
 import ollama
+from anthropic import Anthropic, AsyncAnthropic, APIError as AnthropicAPIError
 
-# ================
+############################
 # Logging
-# ================
+############################
 logging.basicConfig(level=logging.CRITICAL)
 logger = logging.getLogger("dolphin_mcp")
 logger.setLevel(logging.CRITICAL)
 
-# ================
+############################
 # Load .env
-# ================
+############################
 dotenv.load_dotenv(override=True)
+
 
 def parse_arguments():
     """
-    Extract optional '--model <model_name>' from sys.argv,
-    treat the rest as a user query.
+    Extract CLI arguments:
+      --model <model_name>
+      --quiet
+      --config <path>
+    The remainder is the user query.
     """
     args = sys.argv[1:]
     chosen_model = None
+    quiet_mode = False
+    config_path = "mcp_config.json"  # default
     user_query_parts = []
     i = 0
     while i < len(args):
@@ -46,25 +52,42 @@ def parse_arguments():
             else:
                 print("Error: --model requires an argument")
                 sys.exit(1)
+        elif args[i] == "--quiet":
+            quiet_mode = True
+            i += 1
+        elif args[i] == "--config":
+            if i + 1 < len(args):
+                config_path = args[i+1]
+                i += 2
+            else:
+                print("Error: --config requires an argument")
+                sys.exit(1)
         else:
             user_query_parts.append(args[i])
             i += 1
 
     user_query = " ".join(user_query_parts)
-    return chosen_model, user_query
+    return chosen_model, user_query, quiet_mode, config_path
 
-async def load_mcp_config() -> dict:
+
+######################################################################
+# MCP Config Loading (when not passed as a dict)
+######################################################################
+async def load_mcp_config_from_file(config_path="mcp_config.json") -> dict:
     try:
-        with open("mcp_config.json", "r") as f:
+        with open(config_path, "r") as f:
             return json.load(f)
     except FileNotFoundError:
-        print("Error: mcp_config.json not found.")
+        print(f"Error: {config_path} not found.")
         sys.exit(1)
     except json.JSONDecodeError:
-        print("Error: Invalid JSON in mcp_config.json.")
+        print(f"Error: Invalid JSON in {config_path}.")
         sys.exit(1)
 
 
+######################################################################
+# MCPClient
+######################################################################
 class MCPClient:
     """Implementation for a single MCP server."""
     def __init__(self, server_name, command, args=None, env=None):
@@ -81,7 +104,6 @@ class MCPClient:
         self.server_capabilities = {}
 
     async def _receive_loop(self):
-        """Continuously reads JSON-RPC messages from the server."""
         if not self.process or self.process.stdout.at_eof():
             return
         try:
@@ -98,13 +120,11 @@ class MCPClient:
             pass
 
     def _process_message(self, message: dict):
-        """Stores responses by ID, handles notifications, etc."""
         if "jsonrpc" in message and "id" in message:
-            # It's either a response or a server->client request
             if "result" in message or "error" in message:
                 self.responses[message["id"]] = message
             else:
-                # A request from server, not implemented
+                # request from server, not implemented
                 resp = {
                     "jsonrpc": "2.0",
                     "id": message["id"],
@@ -115,11 +135,10 @@ class MCPClient:
                 }
                 asyncio.create_task(self._send_message(resp))
         elif "jsonrpc" in message and "method" in message and "id" not in message:
-            # It's a notification from the server
+            # notification from server
             pass
 
     async def start(self):
-        """Start the MCP server and initialize."""
         expanded_args = []
         for a in self.args:
             if isinstance(a, str) and "~" in a:
@@ -146,7 +165,6 @@ class MCPClient:
             return False
 
     async def _perform_initialize(self):
-        """Send 'initialize' and wait for response."""
         self.request_id += 1
         req_id = self.request_id
         req = {
@@ -155,9 +173,7 @@ class MCPClient:
             "method": "initialize",
             "params": {
                 "protocolVersion": self.protocol_version,
-                "capabilities": {
-                    "sampling": {}
-                },
+                "capabilities": {"sampling": {}},
                 "clientInfo": {
                     "name": "DolphinMCPClient",
                     "version": "1.0.0"
@@ -174,7 +190,6 @@ class MCPClient:
                 if "error" in resp:
                     return False
                 if "result" in resp:
-                    # Then send 'notifications/initialized'
                     note = {"jsonrpc": "2.0", "method": "notifications/initialized"}
                     await self._send_message(note)
                     init_result = resp["result"]
@@ -184,7 +199,6 @@ class MCPClient:
         return False
 
     async def list_tools(self):
-        """Request and return the list of tools from the server."""
         if not self.process:
             return []
         self.request_id += 1
@@ -211,7 +225,6 @@ class MCPClient:
         return []
 
     async def call_tool(self, tool_name: str, arguments: dict):
-        """Call a tool on the server."""
         if not self.process:
             return {"error": "Not started"}
         self.request_id += 1
@@ -240,7 +253,6 @@ class MCPClient:
         return {"error": "Timeout waiting for tool result"}
 
     async def _send_message(self, msg: dict):
-        """Send JSON-RPC message to server."""
         if not self.process or self.process.stdin.is_closing():
             return
         line = json.dumps(msg) + "\n"
@@ -248,7 +260,6 @@ class MCPClient:
         await self.process.stdin.drain()
 
     async def close(self):
-        """Close the server process."""
         if self.receive_task and not self.receive_task.done():
             self.receive_task.cancel()
             try:
@@ -269,14 +280,13 @@ class MCPClient:
             _ = await self.process.stderr.read()
             self.process = None
 
-#
-# Generation for each provider
-#
+#################################
+# Generation: OpenAI, Anthropic, Ollama
+#################################
 async def generate_with_openai(conversation, model_cfg, all_functions):
-    """
-    Use openai>=1.0.0 library, with synchronous calls via run_in_executor.
-    We pass `functions=all_functions, function_call='auto'` so the model can choose to call them.
-    """
+    from openai import OpenAI, APIError, RateLimitError
+    import os
+
     api_key = model_cfg.get("apiKey") or os.getenv("OPENAI_API_KEY")
     if "apiBase" in model_cfg:
         client = OpenAI(api_key=api_key, base_url=model_cfg["apiBase"])
@@ -297,8 +307,8 @@ async def generate_with_openai(conversation, model_cfg, all_functions):
             temperature=temperature,
             top_p=top_p,
             max_tokens=max_tokens,
-            functions=all_functions,       # <--- Pass in the function definitions
-            function_call="auto"           # <--- Let the model decide
+            functions=all_functions,
+            function_call="auto"
         )
 
     try:
@@ -326,11 +336,9 @@ async def generate_with_openai(conversation, model_cfg, all_functions):
 
 
 async def generate_with_anthropic(conversation, model_cfg, all_functions):
-    """
-    Anthropics library doesn't currently support 'functions' the way OpenAI does.
-    We skip them for now.
-    """
     from anthropic import AsyncAnthropic, APIError as AnthropicAPIError
+    import os
+
     anthro_api_key = model_cfg.get("apiKey", os.getenv("ANTHROPIC_API_KEY"))
     client = AsyncAnthropic(api_key=anthro_api_key)
 
@@ -351,6 +359,7 @@ async def generate_with_anthropic(conversation, model_cfg, all_functions):
         )
         assistant_text = create_resp.content or ""
         return {"assistant_text": assistant_text, "tool_calls": []}
+
     except AnthropicAPIError as e:
         return {"assistant_text": f"Anthropic error: {str(e)}", "tool_calls": []}
     except Exception as e:
@@ -358,11 +367,9 @@ async def generate_with_anthropic(conversation, model_cfg, all_functions):
 
 
 async def generate_with_ollama(conversation, model_cfg, all_functions):
-    """
-    The ollama library does not support function calling in the same manner as OpenAI.
-    We'll skip them here too.
-    """
     from ollama import chat, ResponseError
+    import os
+
     model_name = model_cfg["model"]
     temperature = model_cfg.get("temperature", 0.7)
     top_k = model_cfg.get("top_k", None)
@@ -388,10 +395,6 @@ async def generate_with_ollama(conversation, model_cfg, all_functions):
 
 
 async def generate_text(conversation, model_cfg, all_functions):
-    """
-    Depending on the provider, call the correct function.
-    For OpenAI, pass all_functions in as 'functions=' so the model can do function calling.
-    """
     provider = model_cfg.get("provider", "").lower()
     if provider == "openai":
         return await generate_with_openai(conversation, model_cfg, all_functions)
@@ -402,51 +405,59 @@ async def generate_text(conversation, model_cfg, all_functions):
     else:
         return {"assistant_text": f"Unsupported provider '{provider}'", "tool_calls": []}
 
+######################################################################
+# The main library function
+######################################################################
+async def run_interaction(
+    user_query: str,
+    model_name: Optional[str] = None,
+    config: Optional[dict] = None,
+    config_path: str = "mcp_config.json",
+    quiet_mode: bool = False
+) -> str:
+    """
+    The core "library" function. You can either:
+      - Provide a config dict directly (config=<your dict>)
+      - Or omit that and rely on config_path to be read from a file.
 
-async def run():
-    chosen_model_name, user_query = parse_arguments()
-    if not user_query:
-        print("Usage: python dolphin_mcp.py [--model <name>] 'your question'")
-        sys.exit(1)
+    If quiet_mode=True, we won't print intermediate "View result" lines or tool JSON.
+    """
 
-    config = await load_mcp_config()
+    # 1) If config is not provided, load from file:
+    if config is None:
+        config = await load_mcp_config_from_file(config_path)
+
     servers_cfg = config.get("mcpServers", {})
     models_cfg = config.get("models", [])
 
-    if not servers_cfg:
-        print("Error: No servers in config.")
-        sys.exit(1)
-
-    # 1) Choose a model
-    selected_model = None
-    if chosen_model_name:
+    # 2) Choose a model
+    chosen_model = None
+    if model_name:
         for m in models_cfg:
-            if m.get("model") == chosen_model_name:
-                selected_model = m
+            if m.get("model") == model_name:
+                chosen_model = m
                 break
-        if not selected_model:
-            print(f"Error: Model '{chosen_model_name}' not found in config.")
-            sys.exit(1)
+        if not chosen_model:
+            # fallback to default or fail
+            for m in models_cfg:
+                if m.get("default"):
+                    chosen_model = m
+                    break
     else:
-        # fallback to default
+        # if model_name not specified, pick default
         for m in models_cfg:
             if m.get("default"):
-                selected_model = m
+                chosen_model = m
                 break
-        if not selected_model and models_cfg:
-            selected_model = models_cfg[0]
+        if not chosen_model and models_cfg:
+            chosen_model = models_cfg[0]
 
-    if not selected_model:
-        print("No model available in config.")
-        sys.exit(1)
+    if not chosen_model:
+        return "No suitable model found in config."
 
-    # 2) Start MCP servers
+    # 3) Start servers
     servers = {}
-    # We'll store "all_functions" in the shape the new openai library wants:
-    # each item is { "name": ..., "description":..., "parameters": {...} }
-    # We'll accumulate them from each server's tools
     all_functions = []
-    
     for server_name, conf in servers_cfg.items():
         client = MCPClient(
             server_name=server_name,
@@ -456,11 +467,12 @@ async def run():
         )
         ok = await client.start()
         if not ok:
-            print(f"Could not start server {server_name}")
+            if not quiet_mode:
+                print(f"[WARN] Could not start server {server_name}")
             continue
-        tools = await client.list_tools()
 
-        # Convert each tool into an OpenAI function definition
+        # gather tools
+        tools = await client.list_tools()
         for t in tools:
             input_schema = t.get("inputSchema") or {"type": "object", "properties": {}}
             fn_def = {
@@ -473,35 +485,28 @@ async def run():
         servers[server_name] = client
 
     if not servers:
-        print("No MCP servers could be connected.")
-        sys.exit(1)
+        return "No MCP servers could be started."
 
-    # 3) Build conversation
-    system_msg = selected_model.get("systemMessage","")
-    conversation = []
-    if system_msg:
-        conversation.append({"role":"system","content":system_msg})
-    else:
-        conversation.append({"role":"system","content":"You are a helpful assistant."})
+    # 4) Build conversation
+    system_msg = chosen_model.get("systemMessage","You are a helpful assistant.")
+    conversation = [
+        {"role": "system", "content": system_msg},
+        {"role": "user",   "content": user_query}
+    ]
 
-    conversation.append({"role": "user", "content": user_query})
-
-    # 4) Conversation loop
+    final_text = ""
     while True:
-        # Now pass all_functions to generate_text
-        gen_result = await generate_text(conversation, selected_model, all_functions)
+        gen_result = await generate_text(conversation, chosen_model, all_functions)
         assistant_text = gen_result["assistant_text"]
+        final_text = assistant_text
         tool_calls = gen_result.get("tool_calls", [])
 
-        # Add the assistant message
+        # Add the assistant's message
         conversation.append({"role":"assistant","content":assistant_text})
 
         if not tool_calls:
-            # No further function calls => done
-            print("\n" + assistant_text.strip() + "\n")
             break
 
-        # If there are function calls, we handle them
         for tc in tool_calls:
             func_name = tc["function"]["name"]
             func_args_str = tc["function"].get("arguments","{}")
@@ -512,7 +517,6 @@ async def run():
 
             parts = func_name.split("_",1)
             if len(parts) != 2:
-                # can't parse "server_tool"
                 conversation.append({
                     "role":"function",
                     "name": func_name,
@@ -521,10 +525,10 @@ async def run():
                 continue
 
             srv_name, tool_name = parts
-            print(f"View result from {tool_name} from {srv_name} {json.dumps(func_args)}")
+            if not quiet_mode:
+                print(f"View result from {tool_name} from {srv_name} {json.dumps(func_args)}")
 
             if srv_name not in servers:
-                print(f"[No server named {srv_name} connected!]")
                 conversation.append({
                     "role":"function",
                     "name": func_name,
@@ -533,20 +537,44 @@ async def run():
                 continue
 
             result = await servers[srv_name].call_tool(tool_name, func_args)
-            print(json.dumps(result, indent=2))
+            if not quiet_mode:
+                print(json.dumps(result, indent=2))
 
-            # Insert a "function" role message so the model sees the tool's output
             conversation.append({
                 "role":"function",
                 "name": func_name,
                 "content": json.dumps(result)
             })
 
-        # Loop again so the model can incorporate these function messages
-
-    # 5) Close servers
+    # 5) close
     for cli in servers.values():
         await cli.close()
 
+    return final_text
+
+
+######################################################################
+# CLI main
+######################################################################
+async def cli_main():
+    chosen_model_name, user_query, quiet_mode, config_path = parse_arguments()
+    if not user_query:
+        print("Usage: python dolphin_mcp.py [--model <name>] [--quiet] [--config <file>] 'your question'")
+        sys.exit(1)
+
+    # We do not pass a config object; we pass config_path
+    final_text = await run_interaction(
+        user_query=user_query,
+        model_name=chosen_model_name,
+        config_path=config_path,
+        quiet_mode=quiet_mode
+    )
+
+    print("\n" + final_text.strip() + "\n")
+
+
+def main():
+    asyncio.run(cli_main())
+
 if __name__ == "__main__":
-    asyncio.run(run())
+    main()
