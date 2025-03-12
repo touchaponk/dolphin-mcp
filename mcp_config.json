@@ -8,5 +8,40 @@
         "~/.dolphin/dolphin.db"
       ]
     }
-  }
+  },
+  "models": [
+    {
+      "title": "dolphin",
+      "provider": "ollama",
+      "model": "dolphin3"
+    },
+    {
+      "title": "dolphin-r1",
+      "provider": "ollama",
+      "model": "dolphin3-r1"
+    },
+    {
+      "model": "claude-3-7-sonnet-latest",
+      "provider": "anthropic",
+      "apiKey": "****",
+      "title": "claude"
+    },
+    {
+      "model": "gpt-4o",
+      "title": "gpt-4o",
+      "systemMessage": "You are an expert software developer. You give helpful and concise responses.",
+      "apiKey": "****",
+      "provider": "openai",
+      "default": true
+    },
+    {
+      "model": "o3-mini",
+      "title": "o3-mini",
+      "systemMessage": "You are an expert software developer. You give helpful and concise responses.",
+      "contextLength": 128000,
+      "maxCompletionTokens": 65536,
+      "apiKey": "****",
+      "provider": "openai"
+    }
+  ]
 }
