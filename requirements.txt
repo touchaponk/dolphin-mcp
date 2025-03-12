@@ -7,3 +7,5 @@ pytest-mock
 uv
 mcp-server-sqlite
 jsonschema
+anthropic
+ollama
