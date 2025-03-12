@@ -1,0 +1,85 @@
+{
+  "initialize": {
+    "version": "1.0.0",
+    "name": "mock-weather-server"
+  },
+  "list_tools": {
+    "tools": [
+      {
+        "name": "get_current_weather",
+        "description": "Get the current weather for a location",
+        "arguments": [
+          {
+            "name": "location",
+            "description": "Location (e.g., city name, zip code)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "units",
+            "description": "Units of measurement",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["metric", "imperial"],
+              "default": "metric"
+            }
+          }
+        ]
+      },
+      {
+        "name": "get_forecast",
+        "description": "Get the weather forecast for a location",
+        "arguments": [
+          {
+            "name": "location",
+            "description": "Location (e.g., city name, zip code)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "days",
+            "description": "Number of days to forecast",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 5
+            }
+          },
+          {
+            "name": "units",
+            "description": "Units of measurement",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["metric", "imperial"],
+              "default": "metric"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "call_tool": {
+    "get_current_weather": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"location\": \"San Francisco, CA\",\n  \"timestamp\": \"2025-03-11T22:30:00Z\",\n  \"temperature\": 18.5,\n  \"feels_like\": 17.8,\n  \"humidity\": 72,\n  \"pressure\": 1012,\n  \"wind_speed\": 4.2,\n  \"wind_direction\": 270,\n  \"conditions\": \"Partly Cloudy\",\n  \"visibility\": 10000,\n  \"uv_index\": 3,\n  \"units\": \"metric\"\n}"
+        }
+      ]
+    },
+    "get_forecast": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"location\": \"San Francisco, CA\",\n  \"units\": \"metric\",\n  \"forecast\": [\n    {\n      \"date\": \"2025-03-12\",\n      \"day_of_week\": \"Wednesday\",\n      \"high\": 19.2,\n      \"low\": 12.8,\n      \"conditions\": \"Partly Cloudy\",\n      \"precipitation_chance\": 20,\n      \"humidity\": 70,\n      \"wind_speed\": 4.5,\n      \"wind_direction\": 275\n    },\n    {\n      \"date\": \"2025-03-13\",\n      \"day_of_week\": \"Thursday\",\n      \"high\": 20.1,\n      \"low\": 13.2,\n      \"conditions\": \"Sunny\",\n      \"precipitation_chance\": 10,\n      \"humidity\": 65,\n      \"wind_speed\": 3.8,\n      \"wind_direction\": 260\n    },\n    {\n      \"date\": \"2025-03-14\",\n      \"day_of_week\": \"Friday\",\n      \"high\": 18.7,\n      \"low\": 12.5,\n      \"conditions\": \"Cloudy\",\n      \"precipitation_chance\": 30,\n      \"humidity\": 75,\n      \"wind_speed\": 5.2,\n      \"wind_direction\": 280\n    },\n    {\n      \"date\": \"2025-03-15\",\n      \"day_of_week\": \"Saturday\",\n      \"high\": 17.9,\n      \"low\": 11.8,\n      \"conditions\": \"Light Rain\",\n      \"precipitation_chance\": 60,\n      \"humidity\": 80,\n      \"wind_speed\": 6.1,\n      \"wind_direction\": 290\n    },\n    {\n      \"date\": \"2025-03-16\",\n      \"day_of_week\": \"Sunday\",\n      \"high\": 16.5,\n      \"low\": 11.2,\n      \"conditions\": \"Rain\",\n      \"precipitation_chance\": 70,\n      \"humidity\": 85,\n      \"wind_speed\": 7.3,\n      \"wind_direction\": 300\n    }\n  ]\n}"
+        }
+      ]
+    }
+  }
+}

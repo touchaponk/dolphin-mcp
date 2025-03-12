@@ -10,6 +10,7 @@ import sys
 import json
 import subprocess
 import argparse
+import asyncio
 from pathlib import Path
 
 # Add parent directory to path so we can import from src
@@ -81,7 +82,7 @@ def main():
         ]
         
         # Run the main function
-        dolphin_main()
+        asyncio.run(dolphin_main())
         
     except ImportError:
         print("Error: Could not import dolphin_mcp.py")

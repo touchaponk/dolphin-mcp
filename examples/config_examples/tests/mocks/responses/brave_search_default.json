@@ -1,0 +1,43 @@
+{
+  "initialize": {
+    "version": "1.0.0",
+    "name": "mock-brave-search-server"
+  },
+  "list_tools": {
+    "tools": [
+      {
+        "name": "search",
+        "description": "Search the web using Brave Search",
+        "arguments": [
+          {
+            "name": "query",
+            "description": "Search query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "count",
+            "description": "Number of results to return",
+            "required": false,
+            "schema": {
+              "type": "number",
+              "default": 10
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "call_tool": {
+    "search": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"query\": \"artificial intelligence trends\",\n  \"results\": [\n    {\n      \"title\": \"Top 10 Artificial Intelligence Trends for 2025\",\n      \"url\": \"https://example.com/ai-trends-2025\",\n      \"description\": \"Explore the top artificial intelligence trends that will shape the technology landscape in 2025, including advancements in machine learning, natural language processing, and computer vision.\"\n    },\n    {\n      \"title\": \"The Future of AI: Emerging Technologies and Applications\",\n      \"url\": \"https://example.com/future-of-ai\",\n      \"description\": \"A comprehensive overview of emerging AI technologies and their potential applications across various industries, from healthcare to finance.\"\n    },\n    {\n      \"title\": \"How Artificial Intelligence is Transforming Business Operations\",\n      \"url\": \"https://example.com/ai-business-transformation\",\n      \"description\": \"Learn how AI is revolutionizing business operations, improving efficiency, and creating new opportunities for innovation and growth.\"\n    }\n  ]\n}"
+        }
+      ]
+    }
+  }
+}

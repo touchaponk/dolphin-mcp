@@ -1,0 +1,140 @@
+{
+  "initialize": {
+    "version": "1.0.0",
+    "name": "mock-finance-server"
+  },
+  "list_tools": {
+    "tools": [
+      {
+        "name": "get_stock_quote",
+        "description": "Get the current price and information for a stock",
+        "arguments": [
+          {
+            "name": "symbol",
+            "description": "Stock symbol (e.g., AAPL, MSFT)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      {
+        "name": "get_stock_history",
+        "description": "Get historical stock data",
+        "arguments": [
+          {
+            "name": "symbol",
+            "description": "Stock symbol (e.g., AAPL, MSFT)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "interval",
+            "description": "Data interval",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["1d", "1w", "1m"],
+              "default": "1d"
+            }
+          },
+          {
+            "name": "period",
+            "description": "Time period",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["1m", "3m", "6m", "1y", "5y"],
+              "default": "1m"
+            }
+          }
+        ]
+      },
+      {
+        "name": "get_crypto_price",
+        "description": "Get the current price of a cryptocurrency",
+        "arguments": [
+          {
+            "name": "symbol",
+            "description": "Cryptocurrency symbol (e.g., BTC, ETH)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      {
+        "name": "get_crypto_history",
+        "description": "Get historical cryptocurrency data",
+        "arguments": [
+          {
+            "name": "symbol",
+            "description": "Cryptocurrency symbol (e.g., BTC, ETH)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "interval",
+            "description": "Data interval",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["1d", "1w", "1m"],
+              "default": "1d"
+            }
+          },
+          {
+            "name": "period",
+            "description": "Time period",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["1m", "3m", "6m", "1y", "5y"],
+              "default": "1m"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "call_tool": {
+    "get_stock_quote": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"symbol\": \"AAPL\",\n  \"name\": \"Apple Inc.\",\n  \"price\": 198.45,\n  \"change\": 2.34,\n  \"change_percent\": 1.19,\n  \"market_cap\": 3120000000000,\n  \"pe_ratio\": 32.8,\n  \"dividend_yield\": 0.5,\n  \"volume\": 65432100,\n  \"exchange\": \"NASDAQ\",\n  \"timestamp\": \"2025-03-11T16:00:00-04:00\"\n}"
+        }
+      ]
+    },
+    "get_stock_history": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"symbol\": \"AAPL\",\n  \"interval\": \"1d\",\n  \"period\": \"1m\",\n  \"data\": [\n    {\n      \"date\": \"2025-02-11\",\n      \"open\": 185.23,\n      \"high\": 187.45,\n      \"low\": 184.76,\n      \"close\": 186.89,\n      \"volume\": 58234100\n    },\n    {\n      \"date\": \"2025-02-12\",\n      \"open\": 187.01,\n      \"high\": 189.32,\n      \"low\": 186.54,\n      \"close\": 188.75,\n      \"volume\": 62145700\n    },\n    {\n      \"date\": \"2025-02-13\",\n      \"open\": 188.92,\n      \"high\": 190.45,\n      \"low\": 187.65,\n      \"close\": 189.23,\n      \"volume\": 59876500\n    },\n    {\n      \"date\": \"2025-03-11\",\n      \"open\": 196.12,\n      \"high\": 199.87,\n      \"low\": 195.43,\n      \"close\": 198.45,\n      \"volume\": 65432100\n    }\n  ]\n}"
+        }
+      ]
+    },
+    "get_crypto_price": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"symbol\": \"BTC\",\n  \"name\": \"Bitcoin\",\n  \"price\": 75432.98,\n  \"change\": 1234.56,\n  \"change_percent\": 1.66,\n  \"market_cap\": 1450000000000,\n  \"volume_24h\": 28765432100,\n  \"circulating_supply\": 19250000,\n  \"timestamp\": \"2025-03-11T22:30:00Z\"\n}"
+        }
+      ]
+    },
+    "get_crypto_history": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"symbol\": \"BTC\",\n  \"interval\": \"1d\",\n  \"period\": \"1m\",\n  \"data\": [\n    {\n      \"date\": \"2025-02-11\",\n      \"open\": 68234.56,\n      \"high\": 69876.54,\n      \"low\": 67543.21,\n      \"close\": 69123.45,\n      \"volume\": 25678901234\n    },\n    {\n      \"date\": \"2025-02-12\",\n      \"open\": 69234.56,\n      \"high\": 70987.65,\n      \"low\": 68765.43,\n      \"close\": 70123.45,\n      \"volume\": 27654321098\n    },\n    {\n      \"date\": \"2025-02-13\",\n      \"open\": 70234.56,\n      \"high\": 71876.54,\n      \"low\": 69876.54,\n      \"close\": 71234.56,\n      \"volume\": 26789012345\n    },\n    {\n      \"date\": \"2025-03-11\",\n      \"open\": 74321.09,\n      \"high\": 76543.21,\n      \"low\": 73456.78,\n      \"close\": 75432.98,\n      \"volume\": 28765432100\n    }\n  ]\n}"
+        }
+      ]
+    }
+  }
+}

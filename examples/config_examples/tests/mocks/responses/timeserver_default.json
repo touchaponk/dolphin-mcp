@@ -1,0 +1,103 @@
+{
+  "initialize": {
+    "version": "1.0.0",
+    "name": "mock-timeserver"
+  },
+  "list_tools": {
+    "tools": [
+      {
+        "name": "get_current_time",
+        "description": "Get the current time in a specific timezone",
+        "arguments": [
+          {
+            "name": "timezone",
+            "description": "Timezone (e.g., 'America/New_York', 'Europe/London')",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "default": "UTC"
+            }
+          }
+        ]
+      },
+      {
+        "name": "get_time_difference",
+        "description": "Get the time difference between two timezones",
+        "arguments": [
+          {
+            "name": "timezone1",
+            "description": "First timezone",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "timezone2",
+            "description": "Second timezone",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      {
+        "name": "convert_time",
+        "description": "Convert a time from one timezone to another",
+        "arguments": [
+          {
+            "name": "time",
+            "description": "Time to convert (ISO 8601 format)",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from_timezone",
+            "description": "Source timezone",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to_timezone",
+            "description": "Target timezone",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "call_tool": {
+    "get_current_time": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"timezone\": \"America/New_York\",\n  \"datetime\": \"2025-03-11T22:30:00-04:00\",\n  \"timestamp\": 1741046400,\n  \"formatted\": \"Tuesday, March 11, 2025 10:30 PM\"\n}"
+        }
+      ]
+    },
+    "get_time_difference": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"timezone1\": \"America/New_York\",\n  \"timezone2\": \"Europe/London\",\n  \"difference_hours\": 5,\n  \"current_time1\": \"2025-03-11T22:30:00-04:00\",\n  \"current_time2\": \"2025-03-12T03:30:00+00:00\"\n}"
+        }
+      ]
+    },
+    "convert_time": {
+      "content": [
+        {
+          "type": "text",
+          "text": "{\n  \"original_time\": \"2025-03-11T22:30:00-04:00\",\n  \"from_timezone\": \"America/New_York\",\n  \"to_timezone\": \"Asia/Tokyo\",\n  \"converted_time\": \"2025-03-12T11:30:00+09:00\",\n  \"formatted\": \"Wednesday, March 12, 2025 11:30 AM\"\n}"
+        }
+      ]
+    }
+  }
+}

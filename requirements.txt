@@ -1,6 +1,9 @@
-openai>=1.10.0
-mcp>=0.1.0
-python-dotenv>=1.0.0
-pytest>=7.4.0
-pytest-asyncio>=0.21.1
-pytest-mock>=3.11.1
+openai
+mcp[cli]
+python-dotenv
+pytest
+pytest-asyncio
+pytest-mock
+uv
+mcp-server-sqlite
+jsonschema

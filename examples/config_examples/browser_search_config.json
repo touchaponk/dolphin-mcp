@@ -1,0 +1,21 @@
+{
+  "mcpServers": {
+    "puppeteer": {
+      "command": "mcp-server-puppeteer",
+      "args": [],
+      "env": {}
+    },
+    "brave-search": {
+      "command": "mcp-server-brave-search",
+      "args": [],
+      "env": {
+        "BRAVE_API_KEY": "your_brave_api_key"
+      }
+    },
+    "fetch": {
+      "command": "mcp-server-fetch",
+      "args": [],
+      "env": {}
+    }
+  }
+}

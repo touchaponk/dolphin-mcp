@@ -1,0 +1,95 @@
+{
+  "initialize": {
+    "version": "1.0.0",
+    "name": "mock-filesystem-server"
+  },
+  "list_tools": {
+    "tools": [
+      {
+        "name": "list_directory",
+        "description": "List files and directories in a directory",
+        "arguments": [
+          {
+            "name": "path",
+            "description": "Directory path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recursive",
+            "description": "Whether to list files recursively",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false
+            }
+          }
+        ]
+      },
+      {
+        "name": "read_file",
+        "description": "Read the contents of a file",
+        "arguments": [
+          {
+            "name": "path",
+            "description": "File path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      },
+      {
+        "name": "write_file",
+        "description": "Write content to a file",
+        "arguments": [
+          {
+            "name": "path",
+            "description": "File path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "content",
+            "description": "File content",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "call_tool": {
+    "list_directory": {
+      "content": [
+        {
+          "type": "text",
+          "text": "[\n  {\n    \"name\": \"file1.txt\",\n    \"path\": \"/Users/eric/projects/file1.txt\",\n    \"type\": \"file\",\n    \"size\": 1024,\n    \"modified\": \"2025-03-10T15:30:00Z\"\n  },\n  {\n    \"name\": \"file2.md\",\n    \"path\": \"/Users/eric/projects/file2.md\",\n    \"type\": \"file\",\n    \"size\": 2048,\n    \"modified\": \"2025-03-11T09:45:00Z\"\n  },\n  {\n    \"name\": \"subdir\",\n    \"path\": \"/Users/eric/projects/subdir\",\n    \"type\": \"directory\",\n    \"modified\": \"2025-03-09T12:15:00Z\"\n  }\n]"
+        }
+      ]
+    },
+    "read_file": {
+      "content": [
+        {
+          "type": "text",
+          "text": "This is the content of the file.\nIt can contain multiple lines.\nThis is just a mock response for testing purposes."
+        }
+      ]
+    },
+    "write_file": {
+      "content": [
+        {
+          "type": "text",
+          "text": "File written successfully."
+        }
+      ]
+    }
+  }
+}

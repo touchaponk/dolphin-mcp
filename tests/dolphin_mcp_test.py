@@ -11,8 +11,8 @@ from io import StringIO
 # Add path to import the script
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Import the script (assuming it's named mcp_openai.py)
-import mcp_openai
+# Import the script
+from src import dolphin_mcp
 
 # Mock classes and functions
 class MockStream:
@@ -97,7 +97,7 @@ async def test_convert_mcp_tool_to_openai():
     )
     
     # Convert to OpenAI format
-    result = mcp_openai.convert_mcp_tool_to_openai(mock_tool)
+    result = dolphin_mcp.convert_mcp_tool_to_openai(mock_tool)
     
     # Verify conversion
     assert result["type"] == "function"
@@ -140,7 +140,7 @@ async def test_connect_to_mcp_server(mocker):
     mocker.patch("mcp.ClientSession", return_value=mock_session)
     
     # Call function
-    session, tools = await mcp_openai.connect_to_mcp_server("sqlite", config)
+    session, tools = await dolphin_mcp.connect_to_mcp_server("sqlite", config)
     
     # Verify
     assert session == mock_session
@@ -157,11 +157,11 @@ async def test_main_with_no_tool_calls(mocker, mock_env_vars, mock_config):
     
     try:
         # Mock arguments
-        test_args = ["mcp_openai.py", "What is the schema of my database?", "--config", config_path]
+        test_args = ["dolphin_mcp.py", "What is the schema of my database?", "--config", config_path]
         mocker.patch("sys.argv", test_args)
         
         # Mock connect_to_mcp_server
-        mock_connect = mocker.patch("mcp_openai.connect_to_mcp_server")
+        mock_connect = mocker.patch("src.dolphin_mcp.connect_to_mcp_server")
         mock_connect.return_value = (
             MockClientSession(),
             [{"type": "function", "function": {"name": "query_sqlite"}}]
@@ -188,7 +188,7 @@ async def test_main_with_no_tool_calls(mocker, mock_env_vars, mock_config):
         # Run main
         with patch("asyncio.run") as mock_run:
             mock_run.side_effect = lambda x: asyncio.get_event_loop().run_until_complete(x)
-            mcp_openai.main()
+            dolphin_mcp.main()
         
         # Restore stdout
         sys.stdout = sys.__stdout__
@@ -218,7 +218,7 @@ async def test_main_with_tool_calls(mocker, mock_env_vars, mock_config):
     
     try:
         # Mock arguments
-        test_args = ["mcp_openai.py", "Show me all users in the database", "--config", config_path]
+        test_args = ["dolphin_mcp.py", "Show me all users in the database", "--config", config_path]
         mocker.patch("sys.argv", test_args)
         
         # Create session with tool result
@@ -227,7 +227,7 @@ async def test_main_with_tool_calls(mocker, mock_env_vars, mock_config):
         )
         
         # Mock connect_to_mcp_server
-        mock_connect = mocker.patch("mcp_openai.connect_to_mcp_server")
+        mock_connect = mocker.patch("src.dolphin_mcp.connect_to_mcp_server")
         mock_connect.return_value = (
             mock_session,
             [{"type": "function", "function": {"name": "query_sqlite"}}]
@@ -273,7 +273,7 @@ async def test_main_with_tool_calls(mocker, mock_env_vars, mock_config):
         # Run main
         with patch("asyncio.run") as mock_run:
             mock_run.side_effect = lambda x: asyncio.get_event_loop().run_until_complete(x)
-            mcp_openai.main()
+            dolphin_mcp.main()
         
         # Restore stdout
         sys.stdout = sys.__stdout__
