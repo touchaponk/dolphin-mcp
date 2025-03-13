@@ -114,6 +114,8 @@ class MCPClient:
         self.receive_task = None
         self.responses = {}
         self.server_capabilities = {}
+        self._shutdown = False
+        self._cleanup_lock = asyncio.Lock()
 
     async def _receive_loop(self):
         if not self.process or self.process.stdout.at_eof():
@@ -264,33 +266,56 @@ class MCPClient:
             await asyncio.sleep(0.05)
         return {"error": "Timeout waiting for tool result"}
 
-    async def _send_message(self, msg: dict):
-        if not self.process or self.process.stdin.is_closing():
-            return
-        line = json.dumps(msg) + "\n"
-        self.process.stdin.write(line.encode())
-        await self.process.stdin.drain()
+    async def _send_message(self, message: dict):
+        if not self.process or self._shutdown:
+            logger.error(f"Server {self.server_name}: Cannot send message - process not running or shutting down")
+            return False
+        try:
+            data = json.dumps(message) + "\n"
+            self.process.stdin.write(data.encode())
+            await self.process.stdin.drain()
+            return True
+        except Exception as e:
+            logger.error(f"Server {self.server_name}: Error sending message: {str(e)}")
+            return False
 
-    async def close(self):
-        if self.receive_task and not self.receive_task.done():
-            self.receive_task.cancel()
-            try:
-                await self.receive_task
-            except asyncio.CancelledError:
-                pass
-        if self.process:
-            self.process.stdin.close()
-            try:
-                await asyncio.wait_for(self.process.wait(), timeout=2)
-            except asyncio.TimeoutError:
-                self.process.terminate()
+    async def stop(self):
+        async with self._cleanup_lock:
+            if self._shutdown:
+                return
+            self._shutdown = True
+            
+            if self.receive_task and not self.receive_task.done():
+                self.receive_task.cancel()
                 try:
-                    await asyncio.wait_for(self.process.wait(), timeout=2)
-                except asyncio.TimeoutError:
-                    self.process.kill()
-                    await self.process.wait()
-            _ = await self.process.stderr.read()
-            self.process = None
+                    await self.receive_task
+                except asyncio.CancelledError:
+                    pass
+
+            if self.process:
+                try:
+                    # Try graceful shutdown first
+                    self.process.terminate()
+                    try:
+                        await asyncio.wait_for(self.process.wait(), timeout=2.0)
+                    except asyncio.TimeoutError:
+                        # Force kill if graceful shutdown fails
+                        logger.warning(f"Server {self.server_name}: Force killing process after timeout")
+                        self.process.kill()
+                        await self.process.wait()
+                except Exception as e:
+                    logger.error(f"Server {self.server_name}: Error during process cleanup: {str(e)}")
+                finally:
+                    if self.process.stdin:
+                        self.process.stdin.close()
+                    self.process = None
+
+    async def __aenter__(self):
+        await self.start()
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.stop()
 
 ######################################################################
 # Text generation using imported provider implementations

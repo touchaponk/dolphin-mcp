@@ -8,21 +8,22 @@ different dolphin species, their characteristics, and evolutionary relationships
 import os
 import sqlite3
 import pathlib
+from pathlib import Path
 
 def create_dolphin_database():
     """Create a SQLite database with dolphin species information."""
-    # Create directory if it doesn't exist
-    db_dir = os.path.expanduser("~/.dolphin")
-    os.makedirs(db_dir, exist_ok=True)
+    # Create directory if it doesn't exist using pathlib for cross-platform compatibility
+    db_dir = Path.home() / ".dolphin"
+    db_dir.mkdir(parents=True, exist_ok=True)
     
     # Database path
-    db_path = os.path.join(db_dir, "dolphin.db")
+    db_path = db_dir / "dolphin.db"
     
     # Check if database already exists
-    db_exists = os.path.exists(db_path)
+    db_exists = db_path.exists()
     
     # Connect to database (creates it if it doesn't exist)
-    conn = sqlite3.connect(db_path)
+    conn = sqlite3.connect(str(db_path))
     cursor = conn.cursor()
     
     # Create tables if they don't exist
