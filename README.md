@@ -2,8 +2,7 @@
 
 A flexible Python library and CLI tool for interacting with Model Context Protocol (MCP) servers using any LLM model.
 
-![image](https://github.com/user-attachments/assets/8886bedf-a308-450c-9f2f-47aeed02d54b)
-
+![image](https://github.com/user-attachments/assets/d0ee1159-2a8f-454d-8fba-cf692f425af9)
 
 ## Overview
 
