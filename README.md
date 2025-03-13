@@ -56,7 +56,7 @@ Before installing Dolphin MCP, ensure you have the following prerequisites insta
 3. **uv/uvx**:
    - Open PowerShell as Administrator and run:
      ```
-     curl -sSf https://install.ultraviolet.rs/windows | powershell
+     powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
      ```
    - Restart your terminal and verify installation with `uv --version`
 
@@ -78,11 +78,11 @@ Before installing Dolphin MCP, ensure you have the following prerequisites insta
 3. **uv/uvx**:
    - Install using Homebrew:
      ```
-     brew install ultraviolet/uv/uv
+     brew install uv
      ```
    - Or use the official installer:
      ```
-     curl -sSf https://install.ultraviolet.rs/mac | bash
+     curl -LsSf https://astral.sh/uv/install.sh | sh
      ```
    - Verify installation with `uv --version`
 
@@ -103,7 +103,7 @@ Before installing Dolphin MCP, ensure you have the following prerequisites insta
 
 3. **uv/uvx**:
    ```
-   curl -sSf https://install.ultraviolet.rs/linux | bash
+   curl -LsSf https://astral.sh/uv/install.sh | sh
    ```
    - Verify installation with `uv --version`
 
