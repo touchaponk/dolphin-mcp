@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "sqlite": {
+    "dolphin-demo-database-sqlite": {
       "command": "uvx",
       "args": [
         "mcp-server-sqlite",
