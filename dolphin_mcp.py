@@ -12,10 +12,13 @@ from typing import Any, Dict, List, Optional
 ############################
 # Provider imports
 ############################
-import openai
-from openai import OpenAI, APIError, RateLimitError
-import ollama
-from anthropic import Anthropic, AsyncAnthropic, APIError as AnthropicAPIError
+# Add the src directory to the Python path so we can import the modules
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+
+# Import provider implementations from the providers directory
+from dolphin_mcp.providers.openai import generate_with_openai
+from dolphin_mcp.providers.anthropic import generate_with_anthropic
+from dolphin_mcp.providers.ollama import generate_with_ollama
 
 ############################
 # Logging
@@ -289,120 +292,9 @@ class MCPClient:
             _ = await self.process.stderr.read()
             self.process = None
 
-#################################
-# Generation: OpenAI, Anthropic, Ollama
-#################################
-async def generate_with_openai(conversation, model_cfg, all_functions):
-    from openai import OpenAI, APIError, RateLimitError
-    import os
-
-    api_key = model_cfg.get("apiKey") or os.getenv("OPENAI_API_KEY")
-    if "apiBase" in model_cfg:
-        client = OpenAI(api_key=api_key, base_url=model_cfg["apiBase"])
-    else:
-        client = OpenAI(api_key=api_key)
-
-    model_name = model_cfg["model"]
-    temperature = model_cfg.get("temperature", None)
-    top_p = model_cfg.get("top_p", None)
-    max_tokens = model_cfg.get("max_tokens", None)
-
-    loop = asyncio.get_event_loop()
-
-    def do_openai_sync():
-        return client.chat.completions.create(
-            model=model_name,
-            messages=conversation,
-            temperature=temperature,
-            top_p=top_p,
-            max_tokens=max_tokens,
-            functions=all_functions,
-            function_call="auto"
-        )
-
-    try:
-        resp = await loop.run_in_executor(None, do_openai_sync)
-        choice = resp.choices[0]
-        assistant_text = choice.message.content or ""
-        tool_calls = []
-        if choice.message.function_call:
-            fc = choice.message.function_call
-            tool_calls.append({
-                "id": "call_openai",
-                "function": {
-                    "name": fc.name or "unknown_function",
-                    "arguments": fc.arguments or "{}"
-                }
-            })
-        return {"assistant_text": assistant_text, "tool_calls": tool_calls}
-
-    except APIError as e:
-        return {"assistant_text": f"OpenAI API error: {str(e)}", "tool_calls": []}
-    except RateLimitError as e:
-        return {"assistant_text": f"OpenAI rate limit: {str(e)}", "tool_calls": []}
-    except Exception as e:
-        return {"assistant_text": f"Unexpected OpenAI error: {str(e)}", "tool_calls": []}
-
-
-async def generate_with_anthropic(conversation, model_cfg, all_functions):
-    from anthropic import AsyncAnthropic, APIError as AnthropicAPIError
-    import os
-
-    anthro_api_key = model_cfg.get("apiKey", os.getenv("ANTHROPIC_API_KEY"))
-    client = AsyncAnthropic(api_key=anthro_api_key)
-
-    model_name = model_cfg["model"]
-    temperature = model_cfg.get("temperature", 0.7)
-    top_k = model_cfg.get("top_k", None)
-    top_p = model_cfg.get("top_p", None)
-    max_tokens = model_cfg.get("max_tokens", 1024)
-
-    try:
-        create_resp = await client.messages.create(
-            model=model_name,
-            messages=conversation,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            top_k=top_k,
-            top_p=top_p
-        )
-        assistant_text = create_resp.content or ""
-        return {"assistant_text": assistant_text, "tool_calls": []}
-
-    except AnthropicAPIError as e:
-        return {"assistant_text": f"Anthropic error: {str(e)}", "tool_calls": []}
-    except Exception as e:
-        return {"assistant_text": f"Unexpected Anthropics error: {str(e)}", "tool_calls": []}
-
-
-async def generate_with_ollama(conversation, model_cfg, all_functions):
-    from ollama import chat, ResponseError
-    import os
-
-    model_name = model_cfg["model"]
-    temperature = model_cfg.get("temperature", 0.7)
-    top_k = model_cfg.get("top_k", None)
-    repetition_penalty = model_cfg.get("repetition_penalty", None)
-    max_tokens = model_cfg.get("max_tokens", 1024)
-
-    try:
-        response = chat(
-            model=model_name,
-            messages=conversation,
-            temperature=temperature,
-            top_k=top_k,
-            repeat_penalty=repetition_penalty,
-            max_tokens=max_tokens,
-            stream=False
-        )
-        assistant_text = response.message.content or ""
-        return {"assistant_text": assistant_text, "tool_calls": []}
-    except ResponseError as e:
-        return {"assistant_text": f"Ollama error: {str(e)}", "tool_calls": []}
-    except Exception as e:
-        return {"assistant_text": f"Unexpected Ollama error: {str(e)}", "tool_calls": []}
-
-
+######################################################################
+# Text generation using imported provider implementations
+######################################################################
 async def generate_text(conversation, model_cfg, all_functions):
     provider = model_cfg.get("provider", "").lower()
     if provider == "openai":
