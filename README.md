@@ -1,24 +1,30 @@
 # Dolphin MCP
 
-A flexible Python client for interacting with any Model Context Protocol (MCP) servers using OpenAI's API.
+A flexible Python library and CLI tool for interacting with Model Context Protocol (MCP) servers using OpenAI, Anthropic, and Ollama models.
 
 ## Overview
 
-Dolphin MCP is a command-line tool that allows you to query and interact with MCP servers through natural language. It connects to any number of configured MCP servers, makes their tools available to OpenAI's language models, and provides a conversational interface for accessing and manipulating data from these servers.
+Dolphin MCP is both a Python library and a command-line tool that allows you to query and interact with MCP servers through natural language. It connects to any number of configured MCP servers, makes their tools available to language models (OpenAI, Anthropic, Ollama), and provides a conversational interface for accessing and manipulating data from these servers.
 
 The project demonstrates how to:
 - Connect to multiple MCP servers simultaneously
 - List and call tools provided by these servers
-- Use OpenAI's function calling capabilities to interact with external data sources
+- Use function calling capabilities to interact with external data sources
 - Process and present results in a user-friendly way
+- Create a reusable Python library with a clean API
+- Build a command-line interface on top of the library
 
 ## Features
 
-- Connect to any number of MCP servers simultaneously
-- Automatically discover and use tools provided by MCP servers
-- Integrate with any data source or service that has an MCP server implementation
-- Natural language interface powered by OpenAI's API
-- Conversational, step-by-step explanation of tool usage and results
+- **Multiple Provider Support**: Works with OpenAI, Anthropic, and Ollama models
+- **Modular Architecture**: Clean separation of concerns with provider-specific modules
+- **Dual Interface**: Use as a Python library or command-line tool
+- **MCP Server Integration**: Connect to any number of MCP servers simultaneously
+- **Tool Discovery**: Automatically discover and use tools provided by MCP servers
+- **Flexible Configuration**: Configure models and servers through JSON configuration
+- **Environment Variable Support**: Securely store API keys in environment variables
+- **Comprehensive Documentation**: Detailed usage examples and API documentation
+- **Installable Package**: Easy installation via pip with `dolphin-mcp-cli` command
 
 ## Prerequisites
 
@@ -101,30 +107,35 @@ Before installing Dolphin MCP, ensure you have the following prerequisites insta
 
 ## Installation
 
+### Option 1: Install from PyPI (Recommended)
+
+```bash
+pip install dolphin-mcp
+```
+
+This will install both the library and the `dolphin-mcp-cli` command-line tool.
+
+### Option 2: Install from Source
+
 1. Clone this repository:
-   ```
+   ```bash
    git clone https://github.com/cognitivecomputations/dolphin-mcp.git
    cd dolphin-mcp
    ```
 
-2. Install dependencies using uv:
-   ```
-   uv pip install -r requirements.txt
-   ```
-   
-   Alternatively, you can use pip:
-   ```
-   pip install -r requirements.txt
+2. Install the package in development mode:
+   ```bash
+   pip install -e .
    ```
 
 3. Set up your environment variables by copying the example file and adding your OpenAI API key:
-   ```
+   ```bash
    cp .env.example .env
    ```
    Then edit the `.env` file to add your OpenAI API key.
 
 4. (Optional) Set up the demo dolphin database:
-   ```
+   ```bash
    python setup_db.py
    ```
    This creates a sample SQLite database with dolphin information that you can use to test the system.
@@ -164,16 +175,59 @@ The project uses two main configuration files:
 
 ## Usage
 
-Run the script with your query as an argument:
+### Using the CLI Command
+
+Run the CLI command with your query as an argument:
+
+```bash
+dolphin-mcp-cli "Your query here"
+```
+
+### Command-line Options
 
 ```
+Usage: dolphin-mcp-cli [--model <name>] [--quiet] [--config <file>] 'your question'
+
+Options:
+  --model <name>    Specify the model to use
+  --quiet           Suppress intermediate output
+  --config <file>   Specify a custom config file (default: mcp_config.json)
+  --help, -h        Show this help message
+```
+
+### Using the Library Programmatically
+
+You can also use Dolphin MCP as a library in your Python code:
+
+```python
+import asyncio
+from dolphin_mcp import run_interaction
+
+async def main():
+    result = await run_interaction(
+        user_query="What dolphin species are endangered?",
+        model_name="gpt-4o",  # Optional, will use default from config if not specified
+        config_path="mcp_config.json",  # Optional, defaults to mcp_config.json
+        quiet_mode=False  # Optional, defaults to False
+    )
+    print(result)
+
+# Run the async function
+asyncio.run(main())
+```
+
+### Using the Original Script (Legacy)
+
+You can still run the original script directly:
+
+```bash
 python dolphin_mcp.py "Your query here"
 ```
 
-The script will:
+The tool will:
 1. Connect to all configured MCP servers
 2. List available tools from each server
-3. Call the OpenAI API with your query and the available tools
+3. Call the language model API with your query and the available tools
 4. Execute any tool calls requested by the model
 5. Return the results in a conversational format
 
@@ -181,14 +235,26 @@ The script will:
 
 Examples will depend on the MCP servers you have configured. With the demo dolphin database:
 
-```
-python dolphin_mcp.py "What dolphin species are endangered?"
+```bash
+dolphin-mcp-cli "What dolphin species are endangered?"
 ```
 
 Or with your own custom MCP servers:
 
+```bash
+dolphin-mcp-cli "Query relevant to your configured servers"
 ```
-python dolphin_mcp.py "Query relevant to your configured servers"
+
+You can also specify a model to use:
+
+```bash
+dolphin-mcp-cli --model gpt-4o "What are the evolutionary relationships between dolphin species?"
+```
+
+For quieter output (suppressing intermediate results):
+
+```bash
+dolphin-mcp-cli --quiet "List all dolphin species in the Atlantic Ocean"
 ```
 
 ## Demo Database
@@ -204,27 +270,53 @@ This is just one example of what you can do with the Dolphin MCP client. You can
 ## Requirements
 
 - Python 3.8+
-- OpenAI API key
-- Dependencies listed in requirements.txt:
-  - openai
-  - mcp[cli]
-  - python-dotenv
-  - pytest (for testing)
-  - pytest-asyncio (for testing)
-  - pytest-mock (for testing)
-  - uv
-  - mcp-server-sqlite (for the demo)
-  - jsonschema
+- OpenAI API key (or other supported provider API keys)
+
+### Core Dependencies
+- openai
+- mcp[cli]
+- python-dotenv
+- anthropic
+- ollama
+- jsonschema
+
+### Development Dependencies
+- pytest
+- pytest-asyncio
+- pytest-mock
+- uv
+
+### Demo Dependencies
+- mcp-server-sqlite
+
+All dependencies are automatically installed when you install the package using pip.
 
 ## How It Works
 
-1. The script loads configuration from `mcp_config.json` and connects to each configured MCP server.
-2. It retrieves the list of available tools from each server and formats them for OpenAI's function calling API.
-3. The user's query is sent to OpenAI along with the available tools.
-4. If the model decides to call a tool, the script routes the call to the appropriate server and returns the result.
-5. This process continues until the model has all the information it needs to provide a final response.
+### Package Structure
 
-This architecture allows for great flexibility - you can add any MCP server that provides tools for accessing different data sources or services, and the client will automatically make those tools available to the language model.
+The package is organized into several modules:
+
+- `dolphin_mcp/` - Main package directory
+  - `__init__.py` - Package initialization and exports
+  - `client.py` - Core MCPClient implementation and run_interaction function
+  - `cli.py` - Command-line interface
+  - `utils.py` - Utility functions for configuration and argument parsing
+  - `providers/` - Provider-specific implementations
+    - `openai.py` - OpenAI API integration
+    - `anthropic.py` - Anthropic API integration
+    - `ollama.py` - Ollama API integration
+
+### Execution Flow
+
+1. The CLI parses command-line arguments and calls the library's `run_interaction` function.
+2. The library loads configuration from `mcp_config.json` and connects to each configured MCP server.
+3. It retrieves the list of available tools from each server and formats them for the language model's API.
+4. The user's query is sent to the selected language model (OpenAI, Anthropic, or Ollama) along with the available tools.
+5. If the model decides to call a tool, the library routes the call to the appropriate server and returns the result.
+6. This process continues until the model has all the information it needs to provide a final response.
+
+This modular architecture allows for great flexibility - you can add any MCP server that provides tools for accessing different data sources or services, and the client will automatically make those tools available to the language model. The provider-specific modules also make it easy to add support for additional language model providers in the future.
 
 ## Contributing
 

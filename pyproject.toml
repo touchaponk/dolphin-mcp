@@ -1,0 +1,44 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dolphin-mcp"
+version = "0.1.0"
+description = "A flexible Python client for interacting with Model Context Protocol (MCP) servers"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "MIT"}
+authors = [
+    {name = "Dolphin MCP Team"}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+dependencies = [
+    "openai",
+    "mcp[cli]",
+    "python-dotenv",
+    "anthropic",
+    "ollama",
+    "jsonschema",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+    "pytest-mock",
+    "uv",
+]
+demo = [
+    "mcp-server-sqlite",
+]
+
+[project.scripts]
+dolphin-mcp-cli = "dolphin_mcp.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
