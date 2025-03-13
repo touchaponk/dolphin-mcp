@@ -63,3 +63,4 @@ Thumbs.db
 *.sqlite3
 ~/.dolphin/
 /examples/dolphin_db_config.json
+*.jsonl

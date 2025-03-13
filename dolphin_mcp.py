@@ -36,12 +36,14 @@ def parse_arguments():
       --model <model_name>
       --quiet
       --config <path>
+      --log-messages <path>
     The remainder is the user query.
     """
     args = sys.argv[1:]
     chosen_model = None
     quiet_mode = False
     config_path = "mcp_config.json"  # default
+    log_messages_path = None
     user_query_parts = []
     i = 0
     while i < len(args):
@@ -62,12 +64,19 @@ def parse_arguments():
             else:
                 print("Error: --config requires an argument")
                 sys.exit(1)
+        elif args[i] == "--log-messages":
+            if i + 1 < len(args):
+                log_messages_path = args[i+1]
+                i += 2
+            else:
+                print("Error: --log-messages requires an argument")
+                sys.exit(1)
         else:
             user_query_parts.append(args[i])
             i += 1
 
     user_query = " ".join(user_query_parts)
-    return chosen_model, user_query, quiet_mode, config_path
+    return chosen_model, user_query, quiet_mode, config_path, log_messages_path
 
 
 ######################################################################
@@ -408,12 +417,37 @@ async def generate_text(conversation, model_cfg, all_functions):
 ######################################################################
 # The main library function
 ######################################################################
+async def log_messages_to_file(messages, functions, log_path):
+    """
+    Log messages and function definitions to a JSONL file.
+    
+    Args:
+        messages: List of messages to log
+        functions: List of function definitions
+        log_path: Path to the log file
+    """
+    try:
+        # Create directory if it doesn't exist
+        log_dir = os.path.dirname(log_path)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+            
+        # Append to file
+        with open(log_path, "a") as f:
+            f.write(json.dumps({
+                "messages": messages,
+                "functions": functions
+            }) + "\n")
+    except Exception as e:
+        logger.error(f"Error logging messages to {log_path}: {str(e)}")
+
 async def run_interaction(
     user_query: str,
     model_name: Optional[str] = None,
     config: Optional[dict] = None,
     config_path: str = "mcp_config.json",
-    quiet_mode: bool = False
+    quiet_mode: bool = False,
+    log_messages_path: Optional[str] = None
 ) -> str:
     """
     The core "library" function. You can either:
@@ -421,6 +455,7 @@ async def run_interaction(
       - Or omit that and rely on config_path to be read from a file.
 
     If quiet_mode=True, we won't print intermediate "View result" lines or tool JSON.
+    If log_messages_path is provided, all LLM interactions will be logged to this file in JSONL format.
     """
 
     # 1) If config is not provided, load from file:
@@ -546,7 +581,11 @@ async def run_interaction(
                 "content": json.dumps(result)
             })
 
-    # 5) close
+    # 5) Log messages if path is provided
+    if log_messages_path:
+        await log_messages_to_file(conversation, all_functions, log_messages_path)
+    
+    # 6) close
     for cli in servers.values():
         await cli.close()
 
@@ -557,9 +596,9 @@ async def run_interaction(
 # CLI main
 ######################################################################
 async def cli_main():
-    chosen_model_name, user_query, quiet_mode, config_path = parse_arguments()
+    chosen_model_name, user_query, quiet_mode, config_path, log_messages_path = parse_arguments()
     if not user_query:
-        print("Usage: python dolphin_mcp.py [--model <name>] [--quiet] [--config <file>] 'your question'")
+        print("Usage: python dolphin_mcp.py [--model <name>] [--quiet] [--config <file>] [--log-messages <file>] 'your question'")
         sys.exit(1)
 
     # We do not pass a config object; we pass config_path
@@ -567,7 +606,8 @@ async def cli_main():
         user_query=user_query,
         model_name=chosen_model_name,
         config_path=config_path,
-        quiet_mode=quiet_mode
+        quiet_mode=quiet_mode,
+        log_messages_path=log_messages_path
     )
 
     print("\n" + final_text.strip() + "\n")

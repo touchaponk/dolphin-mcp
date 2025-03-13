@@ -230,12 +230,37 @@ async def generate_text(conversation, model_cfg, all_functions):
     else:
         return {"assistant_text": f"Unsupported provider '{provider}'", "tool_calls": []}
 
+async def log_messages_to_file(messages, functions, log_path):
+    """
+    Log messages and function definitions to a JSONL file.
+    
+    Args:
+        messages: List of messages to log
+        functions: List of function definitions
+        log_path: Path to the log file
+    """
+    try:
+        # Create directory if it doesn't exist
+        log_dir = os.path.dirname(log_path)
+        if log_dir and not os.path.exists(log_dir):
+            os.makedirs(log_dir)
+            
+        # Append to file
+        with open(log_path, "a") as f:
+            f.write(json.dumps({
+                "messages": messages,
+                "functions": functions
+            }) + "\n")
+    except Exception as e:
+        logger.error(f"Error logging messages to {log_path}: {str(e)}")
+
 async def run_interaction(
     user_query: str,
     model_name: Optional[str] = None,
     config: Optional[dict] = None,
     config_path: str = "mcp_config.json",
-    quiet_mode: bool = False
+    quiet_mode: bool = False,
+    log_messages_path: Optional[str] = None
 ) -> str:
     """
     Run an interaction with the MCP servers.
@@ -246,6 +271,7 @@ async def run_interaction(
         config: Configuration dict (optional, if not provided will load from config_path)
         config_path: Path to the configuration file (default: mcp_config.json)
         quiet_mode: Whether to suppress intermediate output (default: False)
+        log_messages_path: Path to log messages in JSONL format (optional)
         
     Returns:
         The final text response
@@ -373,7 +399,11 @@ async def run_interaction(
                 "content": json.dumps(result)
             })
 
-    # 5) close
+    # 5) Log messages if path is provided
+    if log_messages_path:
+        await log_messages_to_file(conversation, all_functions, log_messages_path)
+    
+    # 6) close
     for cli in servers.values():
         await cli.close()
 
