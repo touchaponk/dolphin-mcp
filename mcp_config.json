@@ -13,7 +13,12 @@
     {
       "title": "dolphin",
       "provider": "ollama",
-      "model": "dolphin"
+      "model": "dolphin3"
+    },
+    {
+      "title": "llama",
+      "provider": "ollama",
+      "model": "llama3.1"
     },
     {
       "title": "dolphin-r1",
