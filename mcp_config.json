@@ -21,6 +21,12 @@
       "model": "llama3.1"
     },
     {
+      "model": "my-model",
+      "title": "custom-url-openai-compatible",
+      "apiBase": "http://whatever:8080/v1",
+      "provider": "openai"
+    },
+    {
       "title": "dolphin-r1",
       "provider": "ollama",
       "model": "dolphin3-r1",
