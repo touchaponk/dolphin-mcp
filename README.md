@@ -2,6 +2,9 @@
 
 A flexible Python library and CLI tool for interacting with Model Context Protocol (MCP) servers using OpenAI, Anthropic, and Ollama models.
 
+![image](https://github.com/user-attachments/assets/8886bedf-a308-450c-9f2f-47aeed02d54b)
+
+
 ## Overview
 
 Dolphin MCP is both a Python library and a command-line tool that allows you to query and interact with MCP servers through natural language. It connects to any number of configured MCP servers, makes their tools available to language models (OpenAI, Anthropic, Ollama), and provides a conversational interface for accessing and manipulating data from these servers.
