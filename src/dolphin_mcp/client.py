@@ -365,6 +365,9 @@ async def run_interaction(
             }
             all_functions.append(fn_def)
 
+        #print(f"DEBUG: all_functions {all_functions} ")
+
+
         servers[server_name] = client
 
     if not servers:
@@ -380,9 +383,14 @@ async def run_interaction(
     final_text = ""
     while True:
         gen_result = await generate_text(conversation, chosen_model, all_functions)
+        #print(f"DEBUG: gen_result {gen_result}")
+
+        
         assistant_text = gen_result["assistant_text"]
         final_text = assistant_text
         tool_calls = gen_result.get("tool_calls", [])
+        #print(f"DEBUG: tool_calls {tool_calls}")
+
 
         # Add the assistant's message
         conversation.append({"role":"assistant","content":assistant_text})
@@ -393,6 +401,9 @@ async def run_interaction(
         for tc in tool_calls:
             func_name = tc["function"]["name"]
             func_args_str = tc["function"].get("arguments","{}")
+
+            #print("chamando funcao "+func_name)
+            #print("cpm params "+func_args_str)
             try:
                 func_args = json.loads(func_args_str)
             except:
@@ -401,19 +412,22 @@ async def run_interaction(
             parts = func_name.split("_",1)
             if len(parts) != 2:
                 conversation.append({
-                    "role":"function",
+                    "role":"tool",
                     "name": func_name,
                     "content": json.dumps({"error":"Invalid function name format"})
                 })
                 continue
 
             srv_name, tool_name = parts
+            
             if not quiet_mode:
                 print(f"View result from {tool_name} from {srv_name} {json.dumps(func_args)}")
 
+            print(f"DEBUG: Calling {tool_name} from server {srv_name} with args {func_args}")
+
             if srv_name not in servers:
                 conversation.append({
-                    "role":"function",
+                    "role":"tool",
                     "name": func_name,
                     "content": json.dumps({"error":f"Unknown server: {srv_name}"})
                 })
@@ -424,7 +438,7 @@ async def run_interaction(
                 print(json.dumps(result, indent=2))
 
             conversation.append({
-                "role":"function",
+                "role":"tool",
                 "name": func_name,
                 "content": json.dumps(result)
             })
