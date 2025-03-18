@@ -401,12 +401,17 @@ async def run_interaction(
         for tc in tool_calls:
             func_name = tc["function"]["name"]
             func_args_str = tc["function"].get("arguments","{}")
-
-            #print("chamando funcao "+func_name)
-            #print("cpm params "+func_args_str)
+            #func_args={}
+            #print("parametros funcao "+func_name)
+            #print(func_args_str)
             try:
-                func_args = json.loads(func_args_str)
-            except:
+                json_string = json.dumps(func_args_str) 
+
+                func_args = json.loads(json_string)
+                #print("func_args")
+                #print(func_args)
+            except Exception as e:
+                #print(e)
                 func_args = {}
 
             parts = func_name.split("_",1)
@@ -423,7 +428,7 @@ async def run_interaction(
             if not quiet_mode:
                 print(f"View result from {tool_name} from {srv_name} {json.dumps(func_args)}")
 
-            print(f"DEBUG: Calling {tool_name} from server {srv_name} with args {func_args}")
+            #print(f"DEBUG: Calling {tool_name} from server {srv_name} with args {func_args}")
 
             if srv_name not in servers:
                 conversation.append({

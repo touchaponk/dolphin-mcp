@@ -1,0 +1,58 @@
+{
+  "mcpServers": {
+    "dolphin-demo-database-sqlite": {
+      "command": "uvx",
+      "args": [
+        "mcp-server-sqlite",
+        "--db-path",
+        "~/.dolphin/dolphin.db"
+      ]
+    },
+    "postgres": {
+      "command": "docker",
+      "args": [
+        "run", 
+        "-i", 
+        "--rm",
+        "--add-host=host.docker.internal:host-gateway", 
+        "mcp/postgres", 
+        "postgresql://pguser:teste123@host.docker.internal:55432/rnp"]
+    },
+    "filesystem": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "--mount", "type=bind,src=/home/enzo/dev/mcp/utils/teste_fs,dst=/data",
+        "mcp/filesystem",
+        "/data"
+      ]
+    },
+    "puppeteer": {
+      "command": "docker",
+      "args": ["run", "-i", "--rm", "--init", "-e", "DOCKER_CONTAINER=true", "mcp/puppeteer"]
+    }
+      
+  },
+  "models": [
+
+    {
+      "model": "llama3.3:70b-instruct-q3_K_M",
+      "title": "llama3.3:70b",
+      "client": "http://mammoth:11434",
+      "keep_alive_seconds":"240",
+      "provider": "ollama"
+    },
+    {
+      "model": "qwen2.5:72b-instruct-q3_K_S",
+      "title": "qwen2.5:72b",
+      "client": "http://mammoth:11434",
+      "keep_alive_seconds":"240",
+      "provider": "ollama"
+    }
+    
+    
+
+  ]
+}

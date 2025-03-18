@@ -37,9 +37,9 @@ def convert_mcp_tools_to_openai_format(mcp_tools: List[Any]) -> List[Dict[str, A
         
         # Process each tool in the list
         if isinstance(tools_list, list):
-            print(f"Processing {len(tools_list)} tools")
+            #print(f"Processing {len(tools_list)} tools")
             for tool in tools_list:
-                print(f"Processing tool: {tool}, type: {type(tool)}")
+                #print(f"Processing tool: {tool}, type: {type(tool)}")
                 if "name" in tool.keys() and "description" in tool.keys():
                     #openai_name = sanitize_tool_name(tool["name"])
                     openai_name = tool["name"]
@@ -63,9 +63,9 @@ def convert_mcp_tools_to_openai_format(mcp_tools: List[Any]) -> List[Dict[str, A
                             "parameters": tool_schema
                         }
                     }
-                    print(openai_tool)
+                    #print(openai_tool)
                     openai_tools.append(openai_tool)
-                    print(f"Converted tool {tool["name"]} to OpenAI format")
+                    #print(f"Converted tool {tool["name"]} to OpenAI format")
                 else:
                     print(f"Tool missing required attributes: has name = {'name' in tool.keys()}, has description = {'description' in tool.keys()}")
                     a=1
@@ -91,9 +91,9 @@ async def generate_with_ollama(conversation, model_cfg, all_functions):
     Returns:
         Dict containing assistant_text and tool_calls
     """
-    from ollama import chat, ResponseError
+    from ollama import chat, Client,ResponseError
 
-    print("DEBUG: Starting text generation with OLLAMA")
+    #print("DEBUG: Starting text generation with OLLAMA")
 
     model_name = model_cfg["model"]
     
@@ -128,9 +128,6 @@ async def generate_with_ollama(conversation, model_cfg, all_functions):
         keep_alive_seconds=model_cfg.get("keep_alive_seconds")+"s"
 
 
-       
-  
-
 
     try:
         if client == "":
@@ -139,7 +136,8 @@ async def generate_with_ollama(conversation, model_cfg, all_functions):
                 model=model_name,
                 messages=conversation,
                 options=options,
-                stream=False
+                stream=False,
+                tools=converted_all_functions
             )
         else:
             response = client.chat(
@@ -147,7 +145,8 @@ async def generate_with_ollama(conversation, model_cfg, all_functions):
                 keep_alive=keep_alive_seconds,
                 messages=conversation,
                 options=options,
-                stream=False
+                stream=False,
+                tools=converted_all_functions
             )
         assistant_text = response.message.content or ""
         tool_calls =[]
@@ -181,8 +180,8 @@ async def generate_with_ollama(conversation, model_cfg, all_functions):
         #        }
         #    }]
 
-        print("response")
-        print(response)
+        #print("response")
+        #print(response)
         return {"assistant_text": assistant_text, "tool_calls": tool_calls}
     except ResponseError as e:
         return {"assistant_text": f"Ollama error: {str(e)}", "tool_calls": []}
