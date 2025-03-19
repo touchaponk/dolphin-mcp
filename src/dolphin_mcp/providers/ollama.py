@@ -17,34 +17,23 @@ def sanitize_tool_name(name: str) -> str:
 def convert_mcp_tools_to_openai_format(mcp_tools: List[Any]) -> List[Dict[str, Any]]:
         """Convert MCP tool format to OpenAI tool format"""
         openai_tools = []
-        
-#        print(f"Input mcp_tools type: {type(mcp_tools)}")
-#        print(f"Input mcp_tools: {mcp_tools}")
-        
+       
         # Extract tools from the response
         if hasattr(mcp_tools, 'tools'):
             tools_list = mcp_tools.tools
-#            print("Found ListToolsResult, extracting tools attribute")
         elif isinstance(mcp_tools, dict):
             tools_list = mcp_tools.get('tools', [])
-#            print("Found dict, extracting 'tools' key")
         else:
             tools_list = mcp_tools
-#            print("Using mcp_tools directly as list")
-            
-#        print(f"Tools list type: {type(tools_list)}")
-#        print(f"Tools list: {tools_list}")
-        
+                    
         # Process each tool in the list
         if isinstance(tools_list, list):
-            #print(f"Processing {len(tools_list)} tools")
             for tool in tools_list:
                 #print(f"Processing tool: {tool}, type: {type(tool)}")
                 if "name" in tool.keys() and "description" in tool.keys():
                     #openai_name = sanitize_tool_name(tool["name"])
                     openai_name = tool["name"]
                     tool_name_mapping[openai_name] = tool["name"]
-#                    print(f"Tool has required attributes. Name: {tool["name"]}")
                     
                     tool_schema = {
                             "type": "object",
@@ -63,15 +52,14 @@ def convert_mcp_tools_to_openai_format(mcp_tools: List[Any]) -> List[Dict[str, A
                             "parameters": tool_schema
                         }
                     }
-                    #print(openai_tool)
+
                     openai_tools.append(openai_tool)
-                    #print(f"Converted tool {tool["name"]} to OpenAI format")
+                    
                 else:
                     print(f"Tool missing required attributes: has name = {'name' in tool.keys()}, has description = {'description' in tool.keys()}")
-                    a=1
+                    
         else:
-#            print(f"Tools list is not a list, it's a {type(tools_list)}")
-            b=2
+            print(f"Tools list is not a list, it's a {type(tools_list)}")
         
         return openai_tools
 
@@ -93,23 +81,15 @@ async def generate_with_ollama(conversation, model_cfg, all_functions):
     """
     from ollama import chat, Client,ResponseError
 
-    #print("DEBUG: Starting text generation with OLLAMA")
 
     model_name = model_cfg["model"]
     
     
-    #converted_all_functions = convert_mcp_tools_ollama_structure(all_functions)    
+
     converted_all_functions =   convert_mcp_tools_to_openai_format(mcp_tools=all_functions) 
     
- #   print("converted all funcitons : ")
- #   print(converted_all_functions)
     
-    
-    #options = {
-    #    "functions": list(all_functions.values()),  # Pass the tools as part of the request
-    #    # Add other options if needed
-    #}
-    
+       
     # Prepare options dictionary for Ollama
     options = {}
     client=""
@@ -152,12 +132,6 @@ async def generate_with_ollama(conversation, model_cfg, all_functions):
         tool_calls =[]
         if response.message.tool_calls is not None:
             for tool in response.message.tool_calls:
-                #print("tool") 
-                #print(tool)
-                #print("coisas da funcao")
-                #print(tool.function.name)
-                #print("arguments")
-                #print(tool.function.arguments)
                 
                 tool_obj={
                     "id": "call_ollama",
@@ -167,21 +141,9 @@ async def generate_with_ollama(conversation, model_cfg, all_functions):
                     }
 
                 }
-                #print(tool_obj)
 
                 tool_calls.append(tool_obj)
-        #if response.message.tool.callsfunction_call:
-        #    fc = response.message.function_call
-        #    tool_calls = [{
-        #        "id": "call_ollama",
-        #        "function": {
-        #            "name": fc.name or "unknown_function",
-        #            "arguments": fc.arguments or "{}"
-        #        }
-        #    }]
-
-        #print("response")
-        #print(response)
+        
         return {"assistant_text": assistant_text, "tool_calls": tool_calls}
     except ResponseError as e:
         return {"assistant_text": f"Ollama error: {str(e)}", "tool_calls": []}
