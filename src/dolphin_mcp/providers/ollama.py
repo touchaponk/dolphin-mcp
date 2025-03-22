@@ -108,7 +108,6 @@ async def generate_with_ollama(conversation, model_cfg, all_functions):
         keep_alive_seconds=model_cfg.get("keep_alive_seconds")+"s"
 
 
-
     try:
         if client == "":
             response = chat(
