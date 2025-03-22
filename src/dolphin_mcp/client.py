@@ -334,7 +334,8 @@ async def process_tool_call(tc: Dict, servers: Dict[str, MCPClient], quiet_mode:
     parts = func_name.split("_", 1)
     if len(parts) != 2:
         return {
-            "role": "function",
+            "role": "tool",
+            "tool_call_id": tc["id"],
             "name": func_name,
             "content": json.dumps({"error": "Invalid function name format"})
         }
@@ -347,7 +348,8 @@ async def process_tool_call(tc: Dict, servers: Dict[str, MCPClient], quiet_mode:
 
     if srv_name not in servers:
         return {
-            "role": "function",
+            "role": "tool",
+            "tool_call_id": tc["id"],
             "name": func_name,
             "content": json.dumps({"error": f"Unknown server: {srv_name}"})
         }
@@ -365,7 +367,8 @@ async def process_tool_call(tc: Dict, servers: Dict[str, MCPClient], quiet_mode:
         for param in required_params:
             if param not in func_args:
                 return {
-                    "role": "function",
+                    "role": "tool",
+                    "tool_call_id": tc["id"],
                     "name": func_name,
                     "content": json.dumps({"error": f"Missing required parameter: {param}"})
                 }
