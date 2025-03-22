@@ -64,3 +64,4 @@ Thumbs.db
 ~/.dolphin/
 /examples/dolphin_db_config.json
 *.jsonl
+mcp_config.json
