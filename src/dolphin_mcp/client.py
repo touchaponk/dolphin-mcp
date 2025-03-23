@@ -227,20 +227,36 @@ class MCPClient:
 
             if self.process:
                 try:
+                    # Try to send a shutdown notification first
+                    try:
+                        note = {"jsonrpc": "2.0", "method": "shutdown"}
+                        await self._send_message(note)
+                        # Give a small window for the process to react
+                        await asyncio.sleep(0.5)
+                    except:
+                        pass
+                        
+                    # Close stdin before terminating to prevent pipe errors
+                    if self.process.stdin:
+                        self.process.stdin.close()
+                        
                     # Try graceful shutdown first
                     self.process.terminate()
                     try:
-                        await asyncio.wait_for(self.process.wait(), timeout=2.0)
+                        # Use a shorter timeout to make cleanup faster
+                        await asyncio.wait_for(self.process.wait(), timeout=1.0)
                     except asyncio.TimeoutError:
                         # Force kill if graceful shutdown fails
                         logger.warning(f"Server {self.server_name}: Force killing process after timeout")
                         self.process.kill()
-                        await self.process.wait()
+                        try:
+                            await asyncio.wait_for(self.process.wait(), timeout=1.0)
+                        except asyncio.TimeoutError:
+                            logger.error(f"Server {self.server_name}: Process did not respond to SIGKILL")
                 except Exception as e:
                     logger.error(f"Server {self.server_name}: Error during process cleanup: {str(e)}")
                 finally:
-                    if self.process.stdin:
-                        self.process.stdin.close()
+                    # Make sure we clear the reference
                     self.process = None
     
     # Alias close to stop for backward compatibility
