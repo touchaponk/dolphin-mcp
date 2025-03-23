@@ -436,7 +436,7 @@ async def run_interaction(
     chosen_model = None
     if model_name:
         for m in models_cfg:
-            if m.get("model") == model_name:
+            if m.get("model") == model_name or m.get("title") == model_name:
                 chosen_model = m
                 break
         if not chosen_model:
