@@ -477,6 +477,8 @@ async def run_interaction(
             if not quiet_mode:
                 print(f"[WARN] Could not start server {server_name}")
             continue
+        else:
+            print(f"[OK] {server_name}")
 
         # gather tools
         tools = await client.list_tools()
@@ -499,12 +501,31 @@ async def run_interaction(
             return error_gen()
         return error_msg
 
+    conversation = []
+
     # 4) Build conversation
-    system_msg = chosen_model.get("systemMessage", "You are a helpful assistant.")
-    conversation = [
-        {"role": "system", "content": system_msg},
-        {"role": "user", "content": user_query}
-    ]
+    # Get system message - either from systemMessageFile, systemMessage, or default
+    system_msg = "You are a helpful assistant."
+    if "systemMessageFile" in chosen_model:
+        try:
+            with open(chosen_model["systemMessageFile"], "r", encoding="utf-8") as f:
+                system_msg = f.read()
+        except Exception as e:
+            logger.warning(f"Failed to read system message file: {e}")
+            # Fall back to direct systemMessage if available
+            conversation.append({"role": "system", "content": chosen_model.get("systemMessage", system_msg)})
+    else:
+        conversation.append({"role": "system", "content": chosen_model.get("systemMessage", system_msg)})
+    if "systemMessageFiles" in chosen_model:
+        for file in chosen_model["systemMessageFiles"]:
+            try:
+                with open(file, "r", encoding="utf-8") as f:
+                    system_msg = f.read()
+                    conversation.append({"role": "system", "content": "File: " + file + "\n" + system_msg})
+            except Exception as e:
+                logger.warning(f"Failed to read system message file: {e}")
+
+    conversation.append({"role": "user", "content": user_query})
 
     async def cleanup():
         """Clean up servers and log messages"""
