@@ -10,6 +10,7 @@ import re
 import atexit
 import asyncio
 import sys
+import time
 from typing import Dict, List, Any
 
 # Set up logger
@@ -17,6 +18,24 @@ logger = logging.getLogger(__name__)
 
 # Keep track of client resources that need cleanup
 _active_clients = set()
+
+# Track last request time for rate limiting
+_last_request_time = 0.0
+
+# Get rate limit from env var (in seconds) or default to 60 seconds (1 minute)
+def get_rate_limit_seconds():
+    try:
+        return float(os.getenv("ANTHROPIC_RATE_LIMIT_SECONDS", "60"))
+    except (ValueError, TypeError):
+        logger.warning("Invalid ANTHROPIC_RATE_LIMIT_SECONDS value, using default of 60 seconds")
+        return 60.0
+
+def get_caching_enabled():
+    try:
+        return bool(os.getenv("ANTHROPIC_CACHING_ENABLED", "true"))
+    except (ValueError, TypeError):
+        logger.warning("Invalid ANTHROPIC_CACHING_ENABLED value, using default of True")
+        return True
 
 def _cleanup_clients():
     """Ensure all active clients are closed during interpreter shutdown"""
@@ -139,6 +158,22 @@ async def generate_with_anthropic(conversation, model_cfg, all_functions):
         Dict containing assistant_text and tool_calls
     """
     from anthropic import AsyncAnthropic, APIError as AnthropicAPIError
+    
+    global _last_request_time
+    
+    # Apply rate limiting
+    rate_limit_seconds = get_rate_limit_seconds()
+    current_time = time.time()
+    time_since_last_request = current_time - _last_request_time
+    
+    if time_since_last_request < rate_limit_seconds:
+        # Need to wait before making a new request
+        wait_time = rate_limit_seconds - time_since_last_request
+        logger.info(f"Rate limiting: Waiting {wait_time:.2f} seconds before making Anthropic API request")
+        await asyncio.sleep(wait_time)
+    
+    # Update last request time after waiting (if needed)
+    _last_request_time = time.time()
 
     anthro_api_key = model_cfg.get("apiKey", os.getenv("ANTHROPIC_API_KEY"))
     
@@ -174,14 +209,18 @@ async def generate_with_anthropic(conversation, model_cfg, all_functions):
         # Extract system messages and non-system messages
         system_messages = []
         non_system_messages = []
-        
+        last_assistant_content = None
+
         # Process conversation messages for Anthropic format
         for i, msg in enumerate(conversation):
             role = msg.get("role", "")
             content = msg.get("content", "")
             
             if role == "system":
-                system_messages.append(content)
+                system_messages.append({
+                    "type": "text",
+                    "text": content,
+                })
             elif role == "tool":
                 new_msg = {
                     "role": "user",
@@ -198,7 +237,8 @@ async def generate_with_anthropic(conversation, model_cfg, all_functions):
                 
                 # Add text block if there's content
                 if content:
-                    new_msg["content"].append({"type": "text", "text": content})
+                    last_assistant_content = {"type": "text", "text": content}
+                    new_msg["content"].append(last_assistant_content)
                 
                 # Add tool_use blocks for each tool call
                 for tool_call in msg.get("tool_calls", []):
@@ -230,9 +270,10 @@ async def generate_with_anthropic(conversation, model_cfg, all_functions):
             else:
                 # Keep user and assistant messages as they are
                 non_system_messages.append(msg)
-        
-        # Combine system messages into a single string
-        system_prompt = "\n\n".join(system_messages) if system_messages else None
+
+        if get_caching_enabled() and last_assistant_content:
+            last_assistant_content["cache_control"] = {"type": "ephemeral"}
+
         
         # Prepare API parameters, excluding None values
         api_params = {
@@ -250,6 +291,10 @@ async def generate_with_anthropic(conversation, model_cfg, all_functions):
             # Only add tools if we have valid ones
             if anthropic_tools:
                 api_params["tools"] = anthropic_tools
+
+                # cache last tool (because this should be stable)
+                if get_caching_enabled() and not last_assistant_content:
+                    anthropic_tools[-1]["cache_control"] = {"type": "ephemeral"}
                 
                 # Let Claude decide when to use tools instead of forcing it
                 api_params["tool_choice"] = {"type": "auto"}
@@ -257,8 +302,13 @@ async def generate_with_anthropic(conversation, model_cfg, all_functions):
                 logger.warning("No valid tools to add to the request")
         
         # Only add parameters if they have valid values
-        if system_prompt:
-            api_params["system"] = system_prompt
+        if system_messages:
+            api_params["system"] = system_messages
+            if get_caching_enabled() and not last_assistant_content:
+                for msg in system_messages:
+                    # do not cache if the first line contains "TODO.md"
+                    if "TODO.md" not in msg["text"].split("\n")[0]:
+                        msg["cache_control"] = {"type": "ephemeral"}
         if top_p is not None:
             api_params["top_p"] = top_p
         if top_k is not None and isinstance(top_k, int):
