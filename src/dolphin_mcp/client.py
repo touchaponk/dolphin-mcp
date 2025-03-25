@@ -13,6 +13,7 @@ from .utils import load_mcp_config_from_file
 from .providers.openai import generate_with_openai
 from .providers.anthropic import generate_with_anthropic
 from .providers.ollama import generate_with_ollama
+from .providers.lmstudio import generate_with_lmstudio
 
 logger = logging.getLogger("dolphin_mcp")
 
@@ -301,6 +302,8 @@ async def generate_text(conversation: List[Dict], model_cfg: Dict,
                 result = await generate_with_anthropic(conversation, model_cfg, all_functions)
             elif provider == "ollama":
                 result = await generate_with_ollama(conversation, model_cfg, all_functions)
+            elif provider == "lmstudio":
+                result = await generate_with_lmstudio(conversation, model_cfg, all_functions)
             else:
                 result = {"assistant_text": f"Unsupported provider '{provider}'", "tool_calls": []}
             yield result
@@ -311,6 +314,8 @@ async def generate_text(conversation: List[Dict], model_cfg: Dict,
         return await generate_with_anthropic(conversation, model_cfg, all_functions)
     elif provider == "ollama":
         return await generate_with_ollama(conversation, model_cfg, all_functions)
+    elif provider == "lmstudio":
+        return await generate_with_lmstudio(conversation, model_cfg, all_functions)
     else:
         return {"assistant_text": f"Unsupported provider '{provider}'", "tool_calls": []}
 
@@ -559,6 +564,9 @@ async def run_interaction(
                             # Process any tool calls from the final chunk
                             tool_calls = chunk.get("tool_calls", [])
                             if tool_calls:
+                                # Add type field to each tool call
+                                for tc in tool_calls:
+                                    tc["type"] = "function"
                                 # Add the assistant's message with tool calls
                                 assistant_message = {
                                     "role": "assistant",
@@ -596,6 +604,9 @@ async def run_interaction(
                 # Add the assistant's message
                 assistant_message = {"role": "assistant", "content": assistant_text}
                 if tool_calls:
+                    # Add type field to each tool call
+                    for tc in tool_calls:
+                        tc["type"] = "function"
                     assistant_message["tool_calls"] = tool_calls
                 conversation.append(assistant_message)
                 logger.info(f"Added assistant message: {json.dumps(assistant_message, indent=2)}")

@@ -11,6 +11,13 @@
   },
   "models": [
     {
+      "title": "llama3.2",
+      "provider": "lmstudio",
+      "model": "llama-3.2-3b-instruct",
+      "systemMessage": "You are a helpful assistant that uses tools when appropriate.",
+      "default": true
+    },
+    {
       "title": "dolphin",
       "provider": "ollama",
       "model": "dolphin3"
@@ -47,8 +54,7 @@
       "model": "gpt-4o",
       "title": "gpt-4o",
       "systemMessage": "You are an expert software developer. You give helpful and concise responses.",
-      "provider": "openai",
-      "default": true
+      "provider": "openai"
     },
     {
       "model": "o3-mini",

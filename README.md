@@ -6,7 +6,7 @@ A flexible Python library and CLI tool for interacting with Model Context Protoc
 
 ## Overview
 
-Dolphin MCP is both a Python library and a command-line tool that allows you to query and interact with MCP servers through natural language. It connects to any number of configured MCP servers, makes their tools available to language models (OpenAI, Anthropic, Ollama), and provides a conversational interface for accessing and manipulating data from these servers.
+Dolphin MCP is both a Python library and a command-line tool that allows you to query and interact with MCP servers through natural language. It connects to any number of configured MCP servers, makes their tools available to language models (OpenAI, Anthropic, Ollama, LMStudio), and provides a conversational interface for accessing and manipulating data from these servers.
 
 The project demonstrates how to:
 - Connect to multiple MCP servers simultaneously
@@ -18,7 +18,7 @@ The project demonstrates how to:
 
 ## Features
 
-- **Multiple Provider Support**: Works with OpenAI, Anthropic, and Ollama models
+- **Multiple Provider Support**: Works with OpenAI, Anthropic, Ollama, and LMStudio models
 - **Modular Architecture**: Clean separation of concerns with provider-specific modules
 - **Dual Interface**: Use as a Python library or command-line tool
 - **MCP Server Integration**: Connect to any number of MCP servers simultaneously
@@ -253,6 +253,12 @@ You can also specify a model to use:
 dolphin-mcp-cli --model gpt-4o "What are the evolutionary relationships between dolphin species?"
 ```
 
+To use the LMStudio provider:
+
+```bash
+dolphin-mcp-cli --model qwen2.5-7b "What are the evolutionary relationships between dolphin species?"
+```
+
 For quieter output (suppressing intermediate results):
 
 ```bash
@@ -280,6 +286,7 @@ This is just one example of what you can do with the Dolphin MCP client. You can
 - python-dotenv
 - anthropic
 - ollama
+- lmstudio
 - jsonschema
 
 ### Development Dependencies
@@ -308,13 +315,14 @@ The package is organized into several modules:
     - `openai.py` - OpenAI API integration
     - `anthropic.py` - Anthropic API integration
     - `ollama.py` - Ollama API integration
+    - `lmstudio.py` - LMStudio SDK integration
 
 ### Execution Flow
 
 1. The CLI parses command-line arguments and calls the library's `run_interaction` function.
 2. The library loads configuration from `mcp_config.json` and connects to each configured MCP server.
 3. It retrieves the list of available tools from each server and formats them for the language model's API.
-4. The user's query is sent to the selected language model (OpenAI, Anthropic, or Ollama) along with the available tools.
+4. The user's query is sent to the selected language model (OpenAI, Anthropic, Ollama, or LMStudio) along with the available tools.
 5. If the model decides to call a tool, the library routes the call to the appropriate server and returns the result.
 6. This process continues until the model has all the information it needs to provide a final response.
 
