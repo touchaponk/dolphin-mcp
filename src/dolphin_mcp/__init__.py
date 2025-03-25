@@ -4,5 +4,5 @@ Dolphin MCP - A flexible Python client for interacting with Model Context Protoc
 
 from .client import MCPClient, run_interaction
 
-__version__ = "0.1.2"
+__version__ = "0.1.3"
 __all__ = ["MCPClient", "run_interaction"]
