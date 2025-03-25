@@ -227,20 +227,36 @@ class MCPClient:
 
             if self.process:
                 try:
+                    # Try to send a shutdown notification first
+                    try:
+                        note = {"jsonrpc": "2.0", "method": "shutdown"}
+                        await self._send_message(note)
+                        # Give a small window for the process to react
+                        await asyncio.sleep(0.5)
+                    except:
+                        pass
+                        
+                    # Close stdin before terminating to prevent pipe errors
+                    if self.process.stdin:
+                        self.process.stdin.close()
+                        
                     # Try graceful shutdown first
                     self.process.terminate()
                     try:
-                        await asyncio.wait_for(self.process.wait(), timeout=2.0)
+                        # Use a shorter timeout to make cleanup faster
+                        await asyncio.wait_for(self.process.wait(), timeout=1.0)
                     except asyncio.TimeoutError:
                         # Force kill if graceful shutdown fails
                         logger.warning(f"Server {self.server_name}: Force killing process after timeout")
                         self.process.kill()
-                        await self.process.wait()
+                        try:
+                            await asyncio.wait_for(self.process.wait(), timeout=1.0)
+                        except asyncio.TimeoutError:
+                            logger.error(f"Server {self.server_name}: Process did not respond to SIGKILL")
                 except Exception as e:
                     logger.error(f"Server {self.server_name}: Error during process cleanup: {str(e)}")
                 finally:
-                    if self.process.stdin:
-                        self.process.stdin.close()
+                    # Make sure we clear the reference
                     self.process = None
     
     # Alias close to stop for backward compatibility
@@ -420,7 +436,7 @@ async def run_interaction(
     chosen_model = None
     if model_name:
         for m in models_cfg:
-            if m.get("model") == model_name:
+            if m.get("model") == model_name or m.get("title") == model_name:
                 chosen_model = m
                 break
         if not chosen_model:
@@ -461,6 +477,8 @@ async def run_interaction(
             if not quiet_mode:
                 print(f"[WARN] Could not start server {server_name}")
             continue
+        else:
+            print(f"[OK] {server_name}")
 
         # gather tools
         tools = await client.list_tools()
@@ -483,12 +501,31 @@ async def run_interaction(
             return error_gen()
         return error_msg
 
+    conversation = []
+
     # 4) Build conversation
-    system_msg = chosen_model.get("systemMessage", "You are a helpful assistant.")
-    conversation = [
-        {"role": "system", "content": system_msg},
-        {"role": "user", "content": user_query}
-    ]
+    # Get system message - either from systemMessageFile, systemMessage, or default
+    system_msg = "You are a helpful assistant."
+    if "systemMessageFile" in chosen_model:
+        try:
+            with open(chosen_model["systemMessageFile"], "r", encoding="utf-8") as f:
+                system_msg = f.read()
+        except Exception as e:
+            logger.warning(f"Failed to read system message file: {e}")
+            # Fall back to direct systemMessage if available
+            conversation.append({"role": "system", "content": chosen_model.get("systemMessage", system_msg)})
+    else:
+        conversation.append({"role": "system", "content": chosen_model.get("systemMessage", system_msg)})
+    if "systemMessageFiles" in chosen_model:
+        for file in chosen_model["systemMessageFiles"]:
+            try:
+                with open(file, "r", encoding="utf-8") as f:
+                    system_msg = f.read()
+                    conversation.append({"role": "system", "content": "File: " + file + "\n" + system_msg})
+            except Exception as e:
+                logger.warning(f"Failed to read system message file: {e}")
+
+    conversation.append({"role": "user", "content": user_query})
 
     async def cleanup():
         """Clean up servers and log messages"""
