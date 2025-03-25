@@ -150,7 +150,7 @@ The project uses two main configuration files:
    ```
    OPENAI_API_KEY=your_openai_api_key_here
    OPENAI_MODEL=gpt-4o
-   # OPENAI_ENDPOINT=https://api.openai.com/v1  # Uncomment and modify if using a custom endpoint
+   # OPENAI_BASE_URL=https://api.openai.com/v1  # Uncomment and modify if using a custom base url
    ```
 
 2. `mcp_config.json` - Defines MCP servers to connect to:
