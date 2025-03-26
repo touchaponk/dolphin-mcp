@@ -9,6 +9,9 @@ import asyncio
 import logging
 from typing import Any, Dict, List, Optional, Union, AsyncGenerator
 
+from mcp.client.sse import sse_client
+from mcp import ClientSession
+
 from .utils import load_mcp_config_from_file
 from .providers.openai import generate_with_openai
 from .providers.anthropic import generate_with_anthropic
@@ -16,6 +19,71 @@ from .providers.ollama import generate_with_ollama
 from .providers.lmstudio import generate_with_lmstudio
 
 logger = logging.getLogger("dolphin_mcp")
+
+
+class SSEMCPClient:
+    """Implementation for a SSE-based MCP server."""
+
+    def __init__(self, server_name: str, url: str):
+        self.server_name = server_name
+        self.url = url
+        self.tools = []
+        self._streams_context = None
+        self._session_context = None
+        self.session = None
+
+    async def start(self):
+        try:
+            self._streams_context = sse_client(url=self.url)
+            streams = await self._streams_context.__aenter__()
+
+            self._session_context = ClientSession(*streams)
+            self.session = await self._session_context.__aenter__()
+
+            # Initialize
+            await self.session.initialize()
+            return True
+        except Exception as e:
+            logger.error(f"Server {self.server_name}: SSE connection error: {str(e)}")
+            return False
+
+    async def list_tools(self):
+        if not self.session:
+            return []
+        try:
+            response = await self.session.list_tools()
+            # 将 pydantic 模型转换为字典格式
+            self.tools = [
+                {
+                    "name": tool.name,
+                    "description": tool.description,
+                    # "inputSchema": tool.inputSchema.model_dump() if tool.inputSchema else None
+                    "inputSchema": tool.inputSchema
+                }
+                for tool in response.tools
+            ]
+            return self.tools
+        except Exception as e:
+            logger.error(f"Server {self.server_name}: List tools error: {str(e)}")
+            return []
+
+    async def call_tool(self, tool_name: str, arguments: dict):
+        if not self.session:
+            return {"error": "Not connected"}
+        try:
+            response = await self.session.call_tool(tool_name, arguments)
+            # 将 pydantic 模型转换为字典格式
+            return response.model_dump() if hasattr(response, 'model_dump') else response
+        except Exception as e:
+            logger.error(f"Server {self.server_name}: Tool call error: {str(e)}")
+            return {"error": str(e)}
+
+    async def stop(self):
+        if self.session:
+            await self._session_context.__aexit__(None, None, None)
+        if self._streams_context:
+            await self._streams_context.__aexit__(None, None, None)
+
 
 class MCPClient:
     """Implementation for a single MCP server."""
@@ -218,7 +286,7 @@ class MCPClient:
             if self._shutdown:
                 return
             self._shutdown = True
-            
+
             if self.receive_task and not self.receive_task.done():
                 self.receive_task.cancel()
                 try:
@@ -236,11 +304,11 @@ class MCPClient:
                         await asyncio.sleep(0.5)
                     except:
                         pass
-                        
+
                     # Close stdin before terminating to prevent pipe errors
                     if self.process.stdin:
                         self.process.stdin.close()
-                        
+
                     # Try graceful shutdown first
                     self.process.terminate()
                     try:
@@ -259,11 +327,11 @@ class MCPClient:
                 finally:
                     # Make sure we clear the reference
                     self.process = None
-    
+
     # Alias close to stop for backward compatibility
     async def close(self):
         await self.stop()
-        
+
     # Add async context manager support
     async def __aenter__(self):
         await self.start()
@@ -276,25 +344,25 @@ async def generate_text(conversation: List[Dict], model_cfg: Dict,
                        all_functions: List[Dict], stream: bool = False) -> Union[Dict, AsyncGenerator]:
     """
     Generate text using the specified provider.
-    
+
     Args:
         conversation: The conversation history
         model_cfg: Configuration for the model
         all_functions: Available functions for the model to call
         stream: Whether to stream the response
-        
+
     Returns:
         If stream=False: Dict containing assistant_text and tool_calls
         If stream=True: AsyncGenerator yielding chunks of assistant text and tool calls
     """
     provider = model_cfg.get("provider", "").lower()
-    
+
     if provider == "openai":
         if stream:
             return generate_with_openai(conversation, model_cfg, all_functions, stream=True)
         else:
             return await generate_with_openai(conversation, model_cfg, all_functions, stream=False)
-    
+
     # For non-streaming providers, wrap the response in an async generator if streaming is requested
     if stream:
         async def wrap_response():
@@ -308,7 +376,7 @@ async def generate_text(conversation: List[Dict], model_cfg: Dict,
                 result = {"assistant_text": f"Unsupported provider '{provider}'", "tool_calls": []}
             yield result
         return wrap_response()
-    
+
     # Non-streaming path
     if provider == "anthropic":
         return await generate_with_anthropic(conversation, model_cfg, all_functions)
@@ -322,7 +390,7 @@ async def generate_text(conversation: List[Dict], model_cfg: Dict,
 async def log_messages_to_file(messages: List[Dict], functions: List[Dict], log_path: str):
     """
     Log messages and function definitions to a JSONL file.
-    
+
     Args:
         messages: List of messages to log
         functions: List of function definitions
@@ -333,7 +401,7 @@ async def log_messages_to_file(messages: List[Dict], functions: List[Dict], log_
         log_dir = os.path.dirname(log_path)
         if log_dir and not os.path.exists(log_dir):
             os.makedirs(log_dir)
-            
+
         # Append to file
         with open(log_path, "a") as f:
             f.write(json.dumps({
@@ -416,7 +484,7 @@ async def run_interaction(
 ) -> Union[str, AsyncGenerator[str, None]]:
     """
     Run an interaction with the MCP servers.
-    
+
     Args:
         user_query: The user's query
         model_name: Name of the model to use (optional)
@@ -425,7 +493,7 @@ async def run_interaction(
         quiet_mode: Whether to suppress intermediate output (default: False)
         log_messages_path: Path to log messages in JSONL format (optional)
         stream: Whether to stream the response (default: False)
-        
+
     Returns:
         If stream=False: The final text response
         If stream=True: AsyncGenerator yielding chunks of the response
@@ -471,12 +539,15 @@ async def run_interaction(
     servers = {}
     all_functions = []
     for server_name, conf in servers_cfg.items():
-        client = MCPClient(
-            server_name=server_name,
-            command=conf.get("command"),
-            args=conf.get("args", []),
-            env=conf.get("env", {})
-        )
+        if "url" in conf:  # SSE server
+            client = SSEMCPClient(server_name, conf["url"])
+        else:  # Local process-based server
+            client = MCPClient(
+                server_name=server_name,
+                command=conf.get("command"),
+                args=conf.get("args", []),
+                env=conf.get("env", {})
+            )
         ok = await client.start()
         if not ok:
             if not quiet_mode:
