@@ -87,7 +87,7 @@ class SSEMCPClient:
 
 class MCPClient:
     """Implementation for a single MCP server."""
-    def __init__(self, server_name, command, args=None, env=None):
+    def __init__(self, server_name, command, args=None, env=None, cwd=None):
         self.server_name = server_name
         self.command = command
         self.args = args or []
@@ -101,6 +101,7 @@ class MCPClient:
         self.server_capabilities = {}
         self._shutdown = False
         self._cleanup_lock = asyncio.Lock()
+        self.cwd = cwd
 
     async def _receive_loop(self):
         if not self.process or self.process.stdout.at_eof():
@@ -156,7 +157,8 @@ class MCPClient:
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
-                env=env_vars
+                env=env_vars,
+                cwd=self.cwd
             )
             self.receive_task = asyncio.create_task(self._receive_loop())
             return await self._perform_initialize()
@@ -546,7 +548,8 @@ async def run_interaction(
                 server_name=server_name,
                 command=conf.get("command"),
                 args=conf.get("args", []),
-                env=conf.get("env", {})
+                env=conf.get("env", {}),
+                cwd=conf.get("cwd", None)
             )
         ok = await client.start()
         if not ok:
