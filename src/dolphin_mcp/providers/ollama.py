@@ -13,7 +13,11 @@ import copy
 from typing import Dict, List, Any, Optional, Union, Mapping, TypeVar, cast, Callable
 
 # Third-party imports
+import httpx
 from pydantic import BaseModel, ValidationError
+# Import Ollama types for response parsing
+from ollama import ResponseError
+from ollama._types import ChatResponse, Message
 
 # Configure logging
 logging.basicConfig(
@@ -107,11 +111,18 @@ def preprocess_messages(messages: List[MessageType]) -> List[MessageType]:
                         if isinstance(tool_call['function']['arguments'], str):
                             try:
                                 parsed = parse_json_safely(tool_call['function']['arguments'])
-                                tool_call['function']['arguments'] = parsed
+                                # If parsing results in an empty dict, remove the key instead
+                                if not parsed: 
+                                    del tool_call['function']['arguments']
+                                    logger.debug("Removed empty arguments key during preprocessing.")
+                                else:
+                                    tool_call['function']['arguments'] = parsed
                                 modified_count += 1
                             except Exception as e:
                                 logger.error(f"Error parsing tool call arguments: {e}")
-                                tool_call['function']['arguments'] = {}
+                                # If error, ensure key is removed or set to empty dict
+                                if 'arguments' in tool_call['function']:
+                                    del tool_call['function']['arguments'] 
     
     if modified_count > 0:
         logger.debug(f"Preprocessed {modified_count} tool call arguments from strings to dicts")
@@ -492,40 +503,87 @@ async def call_ollama_api(
     chat: Callable, 
     client: Optional[Any], 
     chat_params: Dict[str, Any]
-) -> Union[Any, Dict[str, Any]]:
+) -> Union[ChatResponse, Dict[str, Any]]:
     """
-    Call the Ollama API and handle errors.
-    
+    Call the Ollama API using httpx to manually handle the response and fix potential issues
+    before Pydantic validation.
+
     Args:
-        chat: The chat function from ollama
-        client: Optional ollama client
+        chat: The chat function from ollama (unused, kept for signature compatibility for now)
+        client: Optional ollama client object to get host info
         chat_params: Parameters for the chat call
-        
+
     Returns:
-        Either the API response or an error dict
+        Either a parsed ChatResponse object or an error dict
     """
-    from ollama import ResponseError
-    
-    logger.debug("Calling Ollama API...")
-    
+    logger.debug("Calling Ollama API via httpx...")
+
+    # Determine host and construct URL
+    host = DEFAULT_API_HOST
+    if client and hasattr(client, 'host'):
+        host = client.host
+    api_url = f"{host}/api/chat"
+    logger.debug(f"Target API URL: {api_url}")
+
     try:
-        if client:
-            response = client.chat(**chat_params)
-        else:
-            response = chat(**chat_params)
-        
-        logger.debug("Ollama API call successful")
-        return response
-    except ValidationError as e:
-        logger.error(f"Pydantic validation error: {e}")
+        async with httpx.AsyncClient(timeout=600.0) as http_client: # Increased timeout
+            http_response = await http_client.post(api_url, json=chat_params)
+            http_response.raise_for_status() # Raise exception for 4xx/5xx errors
+            
+            raw_response_data = http_response.json()
+            logger.debug("Received raw JSON response from Ollama API.")
+
+            # --- Manual Fix for Missing 'arguments' ---
+            if 'message' in raw_response_data and 'tool_calls' in raw_response_data['message'] and raw_response_data['message']['tool_calls']:
+                corrected_count = 0
+                for tool_call in raw_response_data['message']['tool_calls']:
+                    if isinstance(tool_call, dict) and 'function' in tool_call:
+                        if 'arguments' not in tool_call['function']:
+                            tool_call['function']['arguments'] = {}
+                            corrected_count += 1
+                            logger.debug(f"Manually added missing 'arguments: {{}}' to tool call: {tool_call.get('function', {}).get('name')}")
+                if corrected_count > 0:
+                     logger.info(f"Corrected {corrected_count} tool calls with missing 'arguments'.")
+            # --- End Manual Fix ---
+
+            # Attempt to parse the corrected data using the SDK's Pydantic model
+            try:
+                parsed_response = ChatResponse(**raw_response_data)
+                logger.debug("Successfully parsed corrected JSON into ChatResponse model.")
+                return parsed_response
+            except ValidationError as pydantic_error:
+                logger.error(f"Pydantic validation failed even after manual correction: {pydantic_error}")
+                logger.debug(f"Corrected JSON data that failed validation: {raw_response_data}")
+                return {
+                     "assistant_text": f"Ollama SDK Validation Error after manual correction: {str(pydantic_error)}",
+                     "tool_calls": []
+                 }
+
+    except httpx.HTTPStatusError as e:
+        logger.error(f"Ollama API HTTP Error: {e.response.status_code} - {e.response.text}")
+        # Try to parse error details from response if possible
+        error_detail = e.response.text
+        try:
+            error_json = e.response.json()
+            error_detail = error_json.get('error', error_detail)
+        except Exception:
+            pass # Keep original text if JSON parsing fails
+        return {"assistant_text": f"Ollama API HTTP Error {e.response.status_code}: {error_detail}", "tool_calls": []}
+    except httpx.RequestError as e:
+        logger.error(f"Ollama API Request Error: {e}")
+        return {"assistant_text": f"Ollama API Request Error: {str(e)}", "tool_calls": []}
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to decode JSON response from Ollama API: {e}")
+        return {"assistant_text": f"Ollama API JSON Decode Error: {str(e)}", "tool_calls": []}
+    except ValidationError as e: # Catch Pydantic errors during initial raw parsing if they occur
+        # This specific check might be less likely now, but kept for safety
+        error_str = str(e)
+        logger.error(f"Caught Pydantic validation error during httpx handling: {e}")
         return {
-            "assistant_text": f"Ollama SDK Validation Error: {str(e)}",
+            "assistant_text": f"Ollama SDK Validation Error during httpx handling: {error_str}",
             "tool_calls": []
         }
-    except ResponseError as e:
-        logger.error(f"Ollama API ResponseError: {e}")
-        return {"assistant_text": f"Ollama error: {str(e)}", "tool_calls": []}
     except Exception as e:
-        logger.error(f"Unexpected error during Ollama API call: {e}")
+        logger.error(f"Unexpected error during Ollama API call via httpx: {e}")
         traceback.print_exc()
-        return {"assistant_text": f"Unexpected Ollama error: {str(e)}", "tool_calls": []}
+        return {"assistant_text": f"Unexpected error during httpx API call: {str(e)}", "tool_calls": []}
