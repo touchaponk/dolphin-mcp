@@ -32,7 +32,7 @@ The project demonstrates how to:
 
 Before installing Dolphin MCP, ensure you have the following prerequisites installed:
 
-1. **Python 3.8+**
+1. **Python 3.10+**
 2. **SQLite** - A lightweight database used by the demo
 3. **uv/uvx** - A fast Python package installer and resolver
 
@@ -40,7 +40,7 @@ Before installing Dolphin MCP, ensure you have the following prerequisites insta
 
 #### Windows
 
-1. **Python 3.8+**:
+1. **Python 3.10+**:
    - Download and install from [python.org](https://www.python.org/downloads/windows/)
    - Ensure you check "Add Python to PATH" during installation
 
@@ -62,7 +62,7 @@ Before installing Dolphin MCP, ensure you have the following prerequisites insta
 
 #### macOS
 
-1. **Python 3.8+**:
+1. **Python 3.10+**:
    - Install using Homebrew:
      ```
      brew install python
@@ -88,7 +88,7 @@ Before installing Dolphin MCP, ensure you have the following prerequisites insta
 
 #### Linux (Ubuntu/Debian)
 
-1. **Python 3.8+**:
+1. **Python 3.10+**:
    ```
    sudo apt update
    sudo apt install python3 python3-pip
@@ -277,7 +277,7 @@ This is just one example of what you can do with the Dolphin MCP client. You can
 
 ## Requirements
 
-- Python 3.8+
+- Python 3.10+
 - OpenAI API key (or other supported provider API keys)
 
 ### Core Dependencies
