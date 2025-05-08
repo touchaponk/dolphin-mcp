@@ -1,7 +1,7 @@
 """
 Core client functionality for Dolphin MCP.
 """
-
+import traceback
 import os
 import sys
 import json
@@ -14,6 +14,7 @@ from mcp import ClientSession
 
 from .utils import load_mcp_config_from_file
 from .providers.openai import generate_with_openai
+from .providers.msazureopenai import generate_with_msazure_openai
 from .providers.anthropic import generate_with_anthropic
 from .providers.ollama import generate_with_ollama
 from .providers.lmstudio import generate_with_lmstudio
@@ -362,6 +363,17 @@ async def generate_text(conversation: List[Dict], model_cfg: Dict,
             return generate_with_openai(conversation, model_cfg, all_functions, stream=True)
         else:
             return await generate_with_openai(conversation, model_cfg, all_functions, stream=False)
+
+    if provider == "msazureopenai":
+        try:
+            if stream:
+                return generate_with_msazure_openai(conversation, model_cfg, all_functions, stream=True)
+            else:
+                return await generate_with_msazure_openai(conversation, model_cfg, all_functions, stream=False)
+        except Exception as e:
+            traceback.print_exc()
+            raise e
+
 
     # For non-streaming providers, wrap the response in an async generator if streaming is requested
     if stream:
