@@ -188,13 +188,16 @@ dolphin-mcp-cli "Your query here"
 ### Command-line Options
 
 ```
-Usage: dolphin-mcp-cli [--model <name>] [--quiet] [--config <file>] 'your question'
+Usage: dolphin-mcp-cli [--model <name>] [--quiet] [--config <file>] [--mcp-config <file>] [--log-messages <file>] [--debug] 'your question'
 
 Options:
-  --model <name>    Specify the model to use
-  --quiet           Suppress intermediate output
-  --config <file>   Specify a custom config file (default: mcp_config.json)
-  --help, -h        Show this help message
+  --model <name>         Specify the model to use (e.g., gpt-4o, dolphin, qwen2.5-7b)
+  --quiet                Suppress intermediate output (except errors)
+  --config <file>        Specify a custom config file for LLM providers (default: config.yml)
+  --mcp-config <file>    Specify a custom config file for MCP servers (default: examples/sqlite-mcp.json)
+  --log-messages <file>  Log all LLM interactions to a JSONL file
+  --debug                Enable debug logging (Note: `cli.py` sets DEBUG level by default currently)
+  --help, -h             Show this help message
 ```
 
 ### Using the Library Programmatically
@@ -238,7 +241,7 @@ The tool will:
 Examples will depend on the MCP servers you have configured. With the demo dolphin database:
 
 ```bash
-dolphin-mcp-cli "What dolphin species are endangered?"
+dolphin-mcp-cli --mcp-config examples/sqlite-mcp.json --model gpt-4o "What dolphin species are endangered?"
 ```
 
 Or with your own custom MCP servers:
@@ -264,6 +267,8 @@ For quieter output (suppressing intermediate results):
 ```bash
 dolphin-mcp-cli --quiet "List all dolphin species in the Atlantic Ocean"
 ```
+
+For more detailed examples and use cases, please refer to the [examples README](./examples/README.md).
 
 ## Demo Database
 
