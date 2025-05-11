@@ -12,3 +12,5 @@ ollama
 lmstudio
 termcolor
 aiofiles
+pyyaml
+aiohttp

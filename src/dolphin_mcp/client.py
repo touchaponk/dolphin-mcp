@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Union, AsyncGenerator
 from mcp.client.sse import sse_client
 from mcp import ClientSession
 
-from .utils import load_mcp_config_from_file
+from .utils import load_config_from_file # Renamed import
 from .providers.openai import generate_with_openai
 from .providers.msazureopenai import generate_with_msazure_openai
 from .providers.anthropic import generate_with_anthropic
@@ -490,52 +490,70 @@ async def process_tool_call(tc: Dict, servers: Dict[str, MCPClient], quiet_mode:
 
 class MCPAgent:
     @classmethod
-    async def create(cls,model_name: Optional[str] = None,
-        config: Optional[dict] = None,
-        config_path: str = "mcp_config.json",
-        quiet_mode: bool = False,
-        log_messages_path: Optional[str] = None,
-        stream: bool = False) -> "MCPAgent":
+    async def create(cls,
+                     model_name: Optional[str] = None,
+                     provider_config: dict = None, # New parameter
+                     mcp_server_config: Optional[dict] = None, # Renamed from config
+                     mcp_server_config_path: str = "mcp_config.json", # Renamed from config_path
+                     quiet_mode: bool = False,
+                     log_messages_path: Optional[str] = None,
+                     stream: bool = False) -> "MCPAgent":
         """
         Create an instance of the MCPAgent using MCPAgent.create(...)
         async class method so that the initialization can be awaited.
 
         Args:
             model_name: Name of the model to use (optional)
-            config: Configuration dict (optional, if not provided will load from config_path)
-            config_path: Path to the configuration file (default: mcp_config.json)
+            provider_config: Provider configuration dictionary (required)
+            mcp_server_config: MCP server configuration dict (optional, if not provided will load from mcp_server_config_path)
+            mcp_server_config_path: Path to the MCP server configuration file (default: mcp_config.json)
             quiet_mode: Whether to suppress intermediate output (default: False)
             log_messages_path: Path to log messages in JSONL format (optional)
             stream: Whether to stream the response (default: False)
 
         Returns:
             An instance of MCPAgent 
-        """        
+        """
+        if provider_config is None:
+            # This should ideally be handled by loading a default or raising an error earlier,
+            # but for now, let's ensure it's not None.
+            # In practice, run_interaction loads it.
+            raise ValueError("provider_config cannot be None")
+
         obj = cls()
-        await obj._initialize(model_name, config, config_path, quiet_mode, log_messages_path, stream)
+        await obj._initialize(
+            model_name=model_name,
+            provider_config=provider_config,
+            mcp_server_config=mcp_server_config,
+            mcp_server_config_path=mcp_server_config_path,
+            quiet_mode=quiet_mode,
+            log_messages_path=log_messages_path,
+            stream=stream
+        )
         return obj
     
     def __init__(self):
         pass
 
     async def _initialize(self,
-        model_name: Optional[str] = None,
-        config: Optional[dict] = None,
-        config_path: str = "mcp_config.json",
-        quiet_mode: bool = False,
-        log_messages_path: Optional[str] = None,
-        stream: bool = False) -> Union[str, AsyncGenerator[str, None]]:
+                          model_name: Optional[str] = None,
+                          provider_config: dict = None, # New parameter
+                          mcp_server_config: Optional[dict] = None, # Renamed from config
+                          mcp_server_config_path: str = "mcp_config.json", # Renamed from config_path
+                          quiet_mode: bool = False,
+                          log_messages_path: Optional[str] = None,
+                          stream: bool = False) -> Union[str, AsyncGenerator[str, None]]:
 
         self.stream = stream
         self.log_messages_path = log_messages_path
         self.quiet_mode = quiet_mode
 
-        # 1) If config is not provided, load from file:
-        if config is None:
-            config = await load_mcp_config_from_file(config_path)
+        # 1) Load MCP Server config if not provided directly
+        if mcp_server_config is None:
+            mcp_server_config = await load_config_from_file(mcp_server_config_path)
 
-        servers_cfg = config.get("mcpServers", {})
-        models_cfg = config.get("models", [])
+        servers_cfg = mcp_server_config.get("mcpServers", {})
+        models_cfg = provider_config.get("models", []) # Get models from provider_config
 
         # 2) Choose a model
         self.chosen_model = None
@@ -544,23 +562,21 @@ class MCPAgent:
                 if m.get("model") == model_name or m.get("title") == model_name:
                     self.chosen_model = m
                     break
-            if not self.chosen_model:
-                # fallback to default or fail
+            if not self.chosen_model: # If specific model not found, try default
                 for m in models_cfg:
                     if m.get("default"):
                         self.chosen_model = m
                         break
-        else:
-            # if model_name not specified, pick default
+        else: # If no model_name specified, pick default
             for m in models_cfg:
                 if m.get("default"):
                     self.chosen_model = m
                     break
-            if not self.chosen_model and models_cfg:
+            if not self.chosen_model and models_cfg: # If no default, pick first
                 self.chosen_model = models_cfg[0]
 
         if not self.chosen_model:
-            error_msg = "No suitable model found in config."
+            error_msg = "No suitable model found in provider_config."
             if stream:
                 async def error_gen():
                     yield error_msg
@@ -741,8 +757,9 @@ class MCPAgent:
 async def run_interaction(
     user_query: str,
     model_name: Optional[str] = None,
-    config: Optional[dict] = None,
-    config_path: str = "mcp_config.json",
+    provider_config_path: str = "config.yml", # New parameter for provider config
+    mcp_server_config: Optional[dict] = None, # Renamed from config
+    mcp_server_config_path: str = "mcp_config.json", # Renamed from config_path
     quiet_mode: bool = False,
     log_messages_path: Optional[str] = None,
     stream: bool = False
@@ -753,8 +770,9 @@ async def run_interaction(
     Args:
         user_query: The user's query
         model_name: Name of the model to use (optional)
-        config: Configuration dict (optional, if not provided will load from config_path)
-        config_path: Path to the configuration file (default: mcp_config.json)
+        provider_config_path: Path to the provider configuration file (default: config.yml)
+        mcp_server_config: MCP server configuration dict (optional, if not provided will load from mcp_server_config_path)
+        mcp_server_config_path: Path to the MCP server configuration file (default: mcp_config.json)
         quiet_mode: Whether to suppress intermediate output (default: False)
         log_messages_path: Path to log messages in JSONL format (optional)
         stream: Whether to stream the response (default: False)
@@ -763,8 +781,16 @@ async def run_interaction(
         If stream=False: The final text response
         If stream=True: AsyncGenerator yielding chunks of the response
     """
-    agent = await MCPAgent.create(model_name, config, config_path, quiet_mode, log_messages_path, stream)
+    provider_config = await load_config_from_file(provider_config_path)
+    agent = await MCPAgent.create(
+        model_name=model_name,
+        provider_config=provider_config, # Pass loaded provider_config
+        mcp_server_config=mcp_server_config, # Pass mcp_server_config
+        mcp_server_config_path=mcp_server_config_path, # Pass mcp_server_config_path
+        quiet_mode=quiet_mode,
+        log_messages_path=log_messages_path,
+        stream=stream
+    )
     response = await agent.prompt(user_query)
     await agent.cleanup()
     return response
-
