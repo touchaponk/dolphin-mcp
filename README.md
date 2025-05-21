@@ -188,17 +188,36 @@ dolphin-mcp-cli "Your query here"
 ### Command-line Options
 
 ```
-Usage: dolphin-mcp-cli [--model <name>] [--quiet] [--config <file>] [--mcp-config <file>] [--log-messages <file>] [--debug] 'your question'
+Usage: dolphin-mcp-cli [--model <name>] [--quiet] [--interactive | -i] [--config <file>] [--mcp-config <file>] [--log-messages <file>] [--debug] ['your question']
 
 Options:
   --model <name>         Specify the model to use (e.g., gpt-4o, dolphin, qwen2.5-7b)
   --quiet                Suppress intermediate output (except errors)
+  --interactive, -i      Enable interactive chat mode. If selected, 'your question' argument is optional for the first turn.
   --config <file>        Specify a custom config file for LLM providers (default: config.yml)
   --mcp-config <file>    Specify a custom config file for MCP servers (default: examples/sqlite-mcp.json)
   --log-messages <file>  Log all LLM interactions to a JSONL file
   --debug                Enable debug logging (Note: `cli.py` sets DEBUG level by default currently)
   --help, -h             Show this help message
 ```
+
+### Interactive Chat Mode
+
+To start `dolphin-mcp-cli` in interactive mode, use the `--interactive` or `-i` flag:
+
+```bash
+dolphin-mcp-cli --interactive
+# or
+dolphin-mcp-cli -i
+```
+
+You can also provide an initial question:
+
+```bash
+dolphin-mcp-cli -i "What dolphin species are endangered?"
+```
+
+In interactive mode, you can have a continuous conversation with the configured model. The chat will maintain context from previous turns. Type `exit` or `quit` to end the session.
 
 ### Using the Library Programmatically
 

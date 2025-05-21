@@ -56,12 +56,13 @@ def parse_arguments():
     Parse command-line arguments.
     
     Returns:
-        Tuple containing (chosen_model, user_query, quiet_mode, chat_mode, config_path, mcp_config_path, log_messages_path)
+        Tuple containing (chosen_model, user_query, quiet_mode, chat_mode, interactive_mode, config_path, mcp_config_path, log_messages_path)
     """
     args = sys.argv[1:]
     chosen_model = None
     quiet_mode = False
     chat_mode = False
+    interactive_mode = False  # Added interactive_mode
     config_path = "config.yml"  # default
     mcp_config_path = "examples/sqlite-mcp.json" # default
     log_messages_path = None
@@ -80,6 +81,9 @@ def parse_arguments():
             i += 1
         elif args[i] == "--chat":
             chat_mode = True
+            i += 1
+        elif args[i] == "--interactive" or args[i] == "-i":  # Added interactive mode check
+            interactive_mode = True
             i += 1
         elif args[i] == "--config":
             if i + 1 < len(args):
@@ -110,4 +114,4 @@ def parse_arguments():
             i += 1
 
     user_query = " ".join(user_query_parts)
-    return chosen_model, user_query, quiet_mode, chat_mode, config_path, mcp_config_path, log_messages_path
+    return chosen_model, user_query, quiet_mode, chat_mode, interactive_mode, config_path, mcp_config_path, log_messages_path
