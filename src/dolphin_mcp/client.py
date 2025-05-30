@@ -88,11 +88,12 @@ class SSEMCPClient:
 
 class MCPClient:
     """Implementation for a single MCP server."""
-    def __init__(self, server_name, command, args=None, env=None, cwd=None):
+    def __init__(self, server_name, command, args=None, env=None, cwd=None, tool_timeout=None):
         self.server_name = server_name
         self.command = command
         self.args = args or []
         self.env = env
+        self.tool_timeout = tool_timeout if tool_timeout is not None else 3600
         self.process = None
         self.tools = []
         self.request_id = 0
@@ -236,7 +237,7 @@ class MCPClient:
             await asyncio.sleep(0.05)
         logger.error(f"Server {self.server_name}: List tools timed out after {timeout}s")
         return []
-
+    
     async def call_tool(self, tool_name: str, arguments: dict):
         if not self.process:
             return {"error": "Not started"}
@@ -254,8 +255,7 @@ class MCPClient:
         await self._send_message(req)
 
         start = asyncio.get_event_loop().time()
-        timeout = 3600  # Increased timeout to 30 seconds
-        while asyncio.get_event_loop().time() - start < timeout:
+        while asyncio.get_event_loop().time() - start < self.tool_timeout:
             if rid in self.responses:
                 resp = self.responses[rid]
                 del self.responses[rid]
@@ -269,8 +269,8 @@ class MCPClient:
             await asyncio.sleep(0.01)  # Reduced sleep interval for more responsive streaming
             if asyncio.get_event_loop().time() - start > 5:  # Log warning after 5 seconds
                 logger.warning(f"Server {self.server_name}: Tool {tool_name} taking longer than 5s...")
-        logger.error(f"Server {self.server_name}: Tool {tool_name} timed out after {timeout}s")
-        return {"error": f"Timeout waiting for tool result after {timeout}s"}
+        logger.error(f"Server {self.server_name}: Tool {tool_name} timed out after {self.tool_timeout}s")
+        return {"error": f"Timeout waiting for tool result after {self.tool_timeout}s"}
 
     async def _send_message(self, message: dict):
         if not self.process or self._shutdown:
@@ -587,6 +587,7 @@ class MCPAgent:
         # 3) Start servers
         self.servers = {}
         self.all_functions = []
+        tool_timeout = provider_config.get("tool_timeout")
         for server_name, conf in servers_cfg.items():
             if "url" in conf:  # SSE server
                 client = SSEMCPClient(server_name, conf["url"])
@@ -596,7 +597,8 @@ class MCPAgent:
                     command=conf.get("command"),
                     args=conf.get("args", []),
                     env=conf.get("env", {}),
-                    cwd=conf.get("cwd", None)
+                    cwd=conf.get("cwd", None),
+                    tool_timeout=tool_timeout 
                 )
             ok = await client.start()
             if not ok:
