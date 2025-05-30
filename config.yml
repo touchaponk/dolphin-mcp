@@ -50,7 +50,7 @@ models:
     keep_alive_seconds: '240'
     provider: lmstudio
 
-tool_timeout: 120 # New global tool timeout setting
+tool_timeout: 120 # Tool timeout in seconds for all MCP servers. This is the maximum time a tool can run before being forcibly stopped.
 
 mcpServers:
   # Example of a test server configuration for timeout testing:
@@ -72,4 +72,3 @@ mcpServers:
       - mcp-server-sqlite
       - --db-path
       - "~/.dolphin/dolphin.db"
-    # tool_timeout: 60 # REMOVED - Now global
