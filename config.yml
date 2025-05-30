@@ -49,11 +49,27 @@ models:
     client: http://mammoth:11434
     keep_alive_seconds: '240'
     provider: lmstudio
+
+tool_timeout: 120 # New global tool timeout setting
+
 mcpServers:
+  # Example of a test server configuration for timeout testing:
+  # test-timeout-server:
+  #   command: python # Replace with your actual test server command/script
+  #   args:
+  #     - -m
+  #     - http.server # Example: python -m http.server (will run indefinitely)
+  #     # Or a script that sleeps:
+  #     # - my_long_running_tool_server.py
+  #     # - --sleep_duration
+  #     # - "30" # This server's tool would sleep for 30 seconds
+  #   # tool_timeout: 2 # REMOVED - Now global. Configure with the top-level 'tool_timeout'.
+  #   # Ensure your test server script actually implements a tool that can be called.
+  #   # The command above (http.server) is just a placeholder and won't work as an MCP server.
   dolphin-demo-database-sqlite:
     command: uvx
     args:
       - mcp-server-sqlite
       - --db-path
       - "~/.dolphin/dolphin.db"
-    tool_timeout: 60
+    # tool_timeout: 60 # REMOVED - Now global

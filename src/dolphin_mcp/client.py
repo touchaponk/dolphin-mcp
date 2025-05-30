@@ -238,15 +238,17 @@ class MCPClient:
         return []
 
     # To manually test the tool_timeout functionality:
-    # 1. Configure an MCP server in config.yml (or your mcp_config.json)
+    # 1. Configure an MCP server in your main configuration file (e.g., config.yml or mcp_config.json)
     #    with a command that simulates a long-running task (e.g., a script that runs `sleep 10`).
-    # 2. Set the `tool_timeout` for this server in the configuration to a short duration (e.g., `tool_timeout: 2`).
-    # 3. Attempt to call a tool from this server using the agent.
-    # 4. Verify that the `call_tool` method (and thus the agent's call) returns a timeout error
-    #    after approximately the specified `tool_timeout` duration (e.g., 2 seconds),
-    #    rather than waiting for the full duration of the task (e.g., 10 seconds).
-    # Note: The `MCPClient` constructor receives the `tool_timeout` value from the `MCPAgent`,
-    # which reads it from the server configuration file (`config.yml` or `mcp_config.json`).
+    #    This server does not need any special timeout configuration itself.
+    # 2. Set the global `tool_timeout` in your main configuration file (e.g., config.yml or the
+    #    JSON equivalent that serves as the provider_config) to a short duration (e.g., `tool_timeout: 2`).
+    # 3. Attempt to call a tool from any MCPClient-based server.
+    # 4. Verify that the call_tool method returns a timeout error after approximately
+    #    the specified global `tool_timeout` duration (e.g., 2 seconds),
+    #    rather than waiting for the full task duration of the server's command (e.g., 10 seconds).
+    # Note: The `MCPClient` constructor is passed the global `tool_timeout`
+    # value, which is handled by `MCPAgent` reading it from the provider configuration.
     async def call_tool(self, tool_name: str, arguments: dict):
         if not self.process:
             return {"error": "Not started"}
@@ -596,18 +598,19 @@ class MCPAgent:
         # 3) Start servers
         self.servers = {}
         self.all_functions = []
+        global_tool_timeout = provider_config.get("tool_timeout") # Read global tool_timeout
         for server_name, conf in servers_cfg.items():
             if "url" in conf:  # SSE server
                 client = SSEMCPClient(server_name, conf["url"])
             else:  # Local process-based server
-                tool_timeout = conf.get("tool_timeout") # Get the timeout from config
+                # tool_timeout = conf.get("tool_timeout") # REMOVE THIS LINE
                 client = MCPClient(
                     server_name=server_name,
                     command=conf.get("command"),
                     args=conf.get("args", []),
                     env=conf.get("env", {}),
                     cwd=conf.get("cwd", None),
-                    tool_timeout=tool_timeout # Pass it to the constructor
+                    tool_timeout=global_tool_timeout # Pass the global_tool_timeout
                 )
             ok = await client.start()
             if not ok:
