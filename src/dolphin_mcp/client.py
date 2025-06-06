@@ -25,9 +25,10 @@ logger = logging.getLogger("dolphin_mcp")
 class SSEMCPClient:
     """Implementation for a SSE-based MCP server."""
 
-    def __init__(self, server_name: str, url: str):
+    def __init__(self, server_name: str, url: str, headers: Optional[Dict[str, str]] = None):
         self.server_name = server_name
         self.url = url
+        self.headers = headers or {}
         self.tools = []
         self._streams_context = None
         self._session_context = None
@@ -35,7 +36,7 @@ class SSEMCPClient:
 
     async def start(self):
         try:
-            self._streams_context = sse_client(url=self.url)
+            self._streams_context = sse_client(url=self.url, headers=self.headers)
             streams = await self._streams_context.__aenter__()
 
             self._session_context = ClientSession(*streams)
@@ -607,9 +608,28 @@ class MCPAgent:
         self.all_functions = []
         tool_timeout = provider_config.get("tool_timeout")
         for server_name, conf in servers_cfg.items():
-            if "url" in conf:  # SSE server
-                client = SSEMCPClient(server_name, conf["url"])
-            else:  # Local process-based server
+            # Check if server is disabled
+            if conf.get("disabled", False):
+                if not quiet_mode:
+                    print(f"[SKIP] {server_name} (disabled)")
+                continue
+                
+            # Determine transport type
+            transport = conf.get("transport", "stdio")  # Default to stdio for backward compatibility
+            
+            if transport == "sse" or ("url" in conf and transport != "stdio"):
+                # SSE server
+                if "url" not in conf:
+                    if not quiet_mode:
+                        print(f"[WARN] Server {server_name} has transport 'sse' but no URL specified")
+                    continue
+                client = SSEMCPClient(
+                    server_name=server_name, 
+                    url=conf["url"],
+                    headers=conf.get("headers")
+                )
+            else:
+                # Local process-based server (stdio transport)
                 client = MCPClient(
                     server_name=server_name,
                     command=conf.get("command"),
