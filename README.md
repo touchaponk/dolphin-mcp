@@ -154,24 +154,55 @@ The project uses two main configuration files:
    ```
 
 2. `mcp_config.json` - Defines MCP servers to connect to:
+
+   **Local Process Servers (stdio transport):**
    ```json
    {
      "mcpServers": {
-       "server1": {
-         "command": "command-to-start-server",
-         "args": ["arg1", "arg2"],
-         "env": {
-           "ENV_VAR1": "value1",
-           "ENV_VAR2": "value2"
-         }
+       "filesystem": {
+         "command": "npx",
+         "args": ["-y", "@modelcontextprotocol/server-filesystem", "./"],
+         "transport": "stdio"
        },
-       "server2": {
-         "command": "another-server-command",
-         "args": ["--option", "value"]
+       "sqlite": {
+         "command": "uvx",
+         "args": ["mcp-server-sqlite", "--db-path", "~/.dolphin/dolphin.db"],
+         "env": {
+           "ENV_VAR": "value"
+         }
        }
      }
    }
    ```
+
+   **SSE (Server-Sent Events) Servers:**
+   ```json
+   {
+     "mcpServers": {
+       "atlassian": {
+         "url": "https://mcp.atlassian.com/v1/sse",
+         "transport": "sse",
+         "headers": {
+           "Authorization": "Bearer your_token_here",
+           "User-Agent": "dolphin-mcp/0.1.3"
+         },
+         "disabled": false
+       },
+       "example-sse": {
+         "url": "https://api.example.com/mcp/sse",
+         "transport": "sse"
+       }
+     }
+   }
+   ```
+
+   **Configuration Options:**
+   - `command` + `args`: For local process servers (stdio transport)
+   - `url` + `transport: "sse"`: For SSE-based servers
+   - `headers`: Optional HTTP headers for SSE servers
+   - `env`: Environment variables for local process servers
+   - `disabled`: Set to `true` to skip a server
+   - `transport`: Explicitly specify "stdio" or "sse" (auto-detected if omitted)
 
    You can add as many MCP servers as you need, and the client will connect to all of them and make their tools available.
 
