@@ -28,7 +28,7 @@ async def cli_main():
         final_text = await run_interaction(
             user_query=user_query,
             model_name=chosen_model_name,
-            config_path=config_path,
+            provider_config_path=config_path,
             quiet_mode=quiet_mode,
             log_messages_path=log_messages_path
         )
@@ -36,9 +36,11 @@ async def cli_main():
         print("\n" + final_text.strip() + "\n")
     else:
         # start a simple chat session
+        from dolphin_mcp.utils import load_config_from_file
+        provider_config = await load_config_from_file(config_path)
         agent = await MCPAgent.create(
             model_name=chosen_model_name,
-            config_path=config_path,
+            provider_config=provider_config,
             quiet_mode=quiet_mode,
             log_messages_path=log_messages_path)
         
