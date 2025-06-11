@@ -200,7 +200,14 @@ def extract_code_blocks(text: str) -> List[str]:
         List of code strings
     """
     code_matches = re.findall(r'```python\s*(.*?)\s*```', text, re.DOTALL | re.IGNORECASE)
-    return [code.strip() for code in code_matches]
+    # Clean up indentation and return
+    cleaned_code = []
+    for code in code_matches:
+        # Remove common leading whitespace (dedent)
+        import textwrap
+        cleaned = textwrap.dedent(code).strip()
+        cleaned_code.append(cleaned)
+    return cleaned_code
 
 
 def extract_final_answer(text: str) -> Optional[str]:
