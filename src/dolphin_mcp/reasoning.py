@@ -333,7 +333,7 @@ The Answer Guidelines:
         
         for i in range(self.config.max_iterations):
             print(f"Reasoning iteration {i + 1}/{self.config.max_iterations}")
-            
+
             try:
                 # Generate response
                 result = await generate_func(conversation, model_cfg, all_functions, stream=False)
@@ -341,7 +341,7 @@ The Answer Guidelines:
                 tool_calls = result.get("tool_calls", [])
                 
                 print(f"Assistant response: {assistant_text}...")
-                
+
                 # Check for final answer
                 final_answer = extract_final_answer(assistant_text)
                 if final_answer:
@@ -377,7 +377,7 @@ The Answer Guidelines:
                         output = python_interpreter(code, self.python_context)
                         code_outputs.append(output)
                         print(f"Code output: {output}\n...")
-                
+
                 # If we have code outputs, add them to the conversation
                 if code_outputs:
                     combined_output = "\n".join(code_outputs)
