@@ -18,6 +18,7 @@ from .providers.msazureopenai import generate_with_msazure_openai
 from .providers.anthropic import generate_with_anthropic
 from .providers.ollama import generate_with_ollama
 from .providers.lmstudio import generate_with_lmstudio
+from .reasoning import MultiStepReasoner, ReasoningConfig
 
 logger = logging.getLogger("dolphin_mcp")
 
@@ -516,7 +517,8 @@ class MCPAgent:
                      mcp_server_config_path: str = "mcp_config.json", # Renamed from config_path
                      quiet_mode: bool = False,
                      log_messages_path: Optional[str] = None,
-                     stream: bool = False) -> "MCPAgent":
+                     stream: bool = False,
+                     reasoning_config: Optional[ReasoningConfig] = None) -> "MCPAgent":
         """
         Create an instance of the MCPAgent using MCPAgent.create(...)
         async class method so that the initialization can be awaited.
@@ -529,6 +531,7 @@ class MCPAgent:
             quiet_mode: Whether to suppress intermediate output (default: False)
             log_messages_path: Path to log messages in JSONL format (optional)
             stream: Whether to stream the response (default: False)
+            reasoning_config: Configuration for multi-step reasoning (optional)
 
         Returns:
             An instance of MCPAgent 
@@ -547,7 +550,8 @@ class MCPAgent:
             mcp_server_config_path=mcp_server_config_path,
             quiet_mode=quiet_mode,
             log_messages_path=log_messages_path,
-            stream=stream
+            stream=stream,
+            reasoning_config=reasoning_config
         )
         return obj
     
@@ -561,11 +565,16 @@ class MCPAgent:
                           mcp_server_config_path: str = "mcp_config.json", # Renamed from config_path
                           quiet_mode: bool = False,
                           log_messages_path: Optional[str] = None,
-                          stream: bool = False) -> Union[str, AsyncGenerator[str, None]]:
+                          stream: bool = False,
+                          reasoning_config: Optional[ReasoningConfig] = None) -> Union[str, AsyncGenerator[str, None]]:
 
         self.stream = stream
         self.log_messages_path = log_messages_path
         self.quiet_mode = quiet_mode
+        
+        # Initialize the reasoning system
+        self.reasoning_config = reasoning_config or ReasoningConfig()
+        self.reasoner = MultiStepReasoner(self.reasoning_config)
 
         # 1) Load MCP Server config if not provided directly
         if mcp_server_config is None:
@@ -679,10 +688,74 @@ class MCPAgent:
             await cli.stop()
         self.servers.clear()
 
-    async def prompt(self, user_query):
+    async def prompt_with_reasoning(self, user_query: str, guidelines: str = "") -> str:
+        """
+        Prompt using the multi-step reasoning approach with planning and execution.
+        
+        Args:
+            user_query: The user's query
+            guidelines: Optional answer guidelines
+            
+        Returns:
+            The final answer from the reasoning process
+        """
+        if not self.quiet_mode:
+            print("Step 1: Generating a plan to solve the problem...")
+        
+        # Generate initial plan
+        initial_plan = await self.reasoner.generate_plan(
+            user_query, guidelines, generate_text, self.chosen_model, self.all_functions
+        )
+        
+        if not self.quiet_mode:
+            print("====== 📝 PLAN ======")
+            print(f"{initial_plan}")
+            print("====================\n")
+            print("Step 2: Starting execution loop...")
+        
+        # Execute the reasoning loop
+        success, result = await self.reasoner.execute_reasoning_loop(
+            user_query, guidelines, initial_plan,
+            generate_text, self.chosen_model, self.all_functions,
+            process_tool_call, self.servers, self.quiet_mode
+        )
+        
+        if success:
+            if not self.quiet_mode:
+                print("\n====== ✅ FINAL ANSWER FOUND ======")
+            return result
+        else:
+            if not self.quiet_mode:
+                print(f"\n====== ❌ ERROR OR MAX ITERATIONS ======\n{result}")
+            return result
+
+    async def prompt(self, user_query, use_reasoning: bool = None, guidelines: str = ""):
         """
         Prompt the specified model along with the configured MCP servers.
 
+        Args:
+            user_query: The user's query
+            use_reasoning: Whether to use multi-step reasoning. If None, uses config default.
+            guidelines: Answer guidelines (used with reasoning mode)
+
+        Returns:
+            If self.stream=False: The final text response
+            If self.stream=True: AsyncGenerator yielding chunks of the response
+        """
+        # Determine if we should use reasoning mode
+        should_use_reasoning = use_reasoning if use_reasoning is not None else self.reasoning_config.enable_planning
+        
+        if should_use_reasoning and not self.stream:
+            # Use the new multi-step reasoning approach
+            return await self.prompt_with_reasoning(user_query, guidelines)
+        else:
+            # Use the original simple approach
+            return await self._prompt_original(user_query)
+    
+    async def _prompt_original(self, user_query):
+        """
+        Original prompt method that uses simple tool-call loop.
+        
         Args:
             user_query: The user's query
 
@@ -783,7 +856,10 @@ async def run_interaction(
     mcp_server_config_path: str = "mcp_config.json", # Renamed from config_path
     quiet_mode: bool = False,
     log_messages_path: Optional[str] = None,
-    stream: bool = False
+    stream: bool = False,
+    reasoning_config: Optional[ReasoningConfig] = None,
+    use_reasoning: Optional[bool] = None,
+    guidelines: str = ""
 ) -> Union[str, AsyncGenerator[str, None]]:
     """
     Run an interaction with the MCP servers.
@@ -797,6 +873,9 @@ async def run_interaction(
         quiet_mode: Whether to suppress intermediate output (default: False)
         log_messages_path: Path to log messages in JSONL format (optional)
         stream: Whether to stream the response (default: False)
+        reasoning_config: Configuration for multi-step reasoning (optional)
+        use_reasoning: Whether to use multi-step reasoning (optional, overrides config default)
+        guidelines: Answer guidelines for reasoning mode (optional)
 
     Returns:
         If stream=False: The final text response
@@ -810,8 +889,9 @@ async def run_interaction(
         mcp_server_config_path=mcp_server_config_path, # Pass mcp_server_config_path
         quiet_mode=quiet_mode,
         log_messages_path=log_messages_path,
-        stream=stream
+        stream=stream,
+        reasoning_config=reasoning_config
     )
-    response = await agent.prompt(user_query)
+    response = await agent.prompt(user_query, use_reasoning=use_reasoning, guidelines=guidelines)
     await agent.cleanup()
     return response

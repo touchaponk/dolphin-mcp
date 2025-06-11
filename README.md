@@ -19,6 +19,7 @@ The project demonstrates how to:
 ## Features
 
 - **Multiple Provider Support**: Works with OpenAI, Anthropic, Ollama, and LMStudio models
+- **Multi-Step Reasoning**: Advanced reasoning system with planning, code execution, and systematic problem solving
 - **Modular Architecture**: Clean separation of concerns with provider-specific modules
 - **Dual Interface**: Use as a Python library or command-line tool
 - **MCP Server Integration**: Connect to any number of MCP servers simultaneously
@@ -288,6 +289,23 @@ dolphin-mcp-cli --quiet "List all dolphin species in the Atlantic Ocean"
 ```
 
 For more detailed examples and use cases, please refer to the [examples README](./examples/README.md).
+
+## Multi-Step Reasoning
+
+Dolphin MCP includes an advanced multi-step reasoning system that can plan, execute code, and systematically solve complex problems. For detailed information about using the reasoning capabilities, see [REASONING.md](./REASONING.md).
+
+Quick example:
+```python
+from dolphin_mcp.client import run_interaction
+from dolphin_mcp.reasoning import ReasoningConfig
+
+result = await run_interaction(
+    user_query="Analyze the fibonacci sequence and find patterns",
+    reasoning_config=ReasoningConfig(enable_planning=True),
+    use_reasoning=True,
+    guidelines="Show your work step by step"
+)
+```
 
 ## Demo Database
 
