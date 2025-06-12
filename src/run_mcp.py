@@ -1,6 +1,9 @@
 import asyncio
 from dolphin_mcp import run_interaction, reasoning
 
+def print_trace(content):
+ print(content)
+
 async def main():
     result = await run_interaction(
         user_query="""
@@ -16,7 +19,7 @@ Local Directory Files:
         mcp_server_config_path="./mcp_config.json",
         quiet_mode=False,  # Optional, defaults to False
         use_reasoning=True,
-        reasoning_config=reasoning.ReasoningConfig(max_iterations=20)
+        reasoning_config=reasoning.ReasoningConfig(max_iterations=20, reasoning_trace=print_trace),
     )
     print(result)
 

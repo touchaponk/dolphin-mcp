@@ -700,7 +700,7 @@ class MCPAgent:
             The final answer from the reasoning process
         """
         if not self.quiet_mode:
-            print("Step 1: Generating a plan to solve the problem...")
+            self.reasoning_config.reasoning_trace("Step 1: Generating a plan to solve the problem...")
         
         # Generate initial plan
         initial_plan = await self.reasoner.generate_plan(
@@ -708,10 +708,13 @@ class MCPAgent:
         )
         
         if not self.quiet_mode:
-            print("====== 📝 PLAN ======")
-            print(f"{initial_plan}")
-            print("====================\n")
-            print("Step 2: Starting execution loop...")
+            log_planning = f"""
+====== 📝 PLAN ======
+{initial_plan}
+=====================
+            """
+            self.reasoning_config.reasoning_trace(log_planning)
+            self.reasoning_config.reasoning_trace("Step 2: Starting execution loop...")
         
         # Execute the reasoning loop
         success, result = await self.reasoner.execute_reasoning_loop(
@@ -722,11 +725,11 @@ class MCPAgent:
         
         if success:
             if not self.quiet_mode:
-                print("\n====== ✅ FINAL ANSWER FOUND ======")
+                self.reasoning_config.reasoning_trace("\n====== ✅ FINAL ANSWER FOUND ======")
             return result
         else:
             if not self.quiet_mode:
-                print(f"\n====== ❌ ERROR OR MAX ITERATIONS ======\n{result}")
+                self.reasoning_config.reasoning_trace(f"\n====== ❌ ERROR OR MAX ITERATIONS ======\n{result}")
             return result
 
     async def prompt(self, user_query, use_reasoning: bool = None, guidelines: str = ""):

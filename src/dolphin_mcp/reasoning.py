@@ -237,11 +237,14 @@ class ReasoningConfig:
                  max_iterations: int = 10,
                  enable_planning: bool = True,
                  enable_code_execution: bool = True,
-                 planning_model: Optional[str] = None):
+                 planning_model: Optional[str] = None,
+                 reasoning_trace: Any = None
+                 ):
         self.max_iterations = max_iterations
         self.enable_planning = enable_planning  
         self.enable_code_execution = enable_code_execution
         self.planning_model = planning_model  # If None, use same model as main reasoning
+        self.reasoning_trace = reasoning_trace
 
 
 class MultiStepReasoner:
@@ -332,20 +335,20 @@ The Answer Guidelines:
         self.python_context = {}
         
         for i in range(self.config.max_iterations):
-            print(f"Reasoning iteration {i + 1}/{self.config.max_iterations}")
+            self.config.reasoning_trace(f"Reasoning iteration {i + 1}/{self.config.max_iterations}")
 
             try:
                 # Generate response
                 result = await generate_func(conversation, model_cfg, all_functions, stream=False)
                 assistant_text = result.get("assistant_text", "")
                 tool_calls = result.get("tool_calls", [])
-                
-                print(f"Assistant response: {assistant_text}...")
+
+                self.config.reasoning_trace(f"Assistant response: {assistant_text}...")
 
                 # Check for final answer
                 final_answer = extract_final_answer(assistant_text)
                 if final_answer:
-                    print("Final answer detected")
+                    self.config.reasoning_trace(f"Final answer detected")
                     return True, final_answer
                 
                 # Add assistant message to conversation
@@ -373,10 +376,10 @@ The Answer Guidelines:
                 
                 if code_blocks and self.config.enable_code_execution:
                     for code in code_blocks:
-                        print(f"Executing code: {code}\n...")
+                        self.config.reasoning_trace(f"Executing code: {code}\n...")
                         output = python_interpreter(code, self.python_context)
                         code_outputs.append(output)
-                        print(f"Code output: {output}\n...")
+                        self.config.reasoning_trace(f"Code Output: {output}\n...")
 
                 # If we have code outputs, add them to the conversation
                 if code_outputs:
@@ -388,13 +391,13 @@ The Answer Guidelines:
                 
                 # If no code and no tool calls, we might be stuck
                 if not code_blocks and not tool_calls:
-                    print("No code execution or tool calls detected, might be stuck")
+                    self.config.reasoning_trace(f"No code execution or tool calls detected, might be stuck")
                     # Continue anyway, the model might be thinking
                 
             except Exception as e:
-                print(f"Error in reasoning iteration {i + 1}: {str(e)}")
+                self.config.reasoning_trace(f"Error in reasoning iteration {i + 1}: {str(e)}")
                 return False, f"Error during reasoning: {str(e)}"
         
         # If we reach here, we've hit max iterations without a final answer
-        print(f"Reached max iterations ({self.config.max_iterations}) without final answer")
+        self.config.reasoning_trace(f"Reached max iterations ({self.config.max_iterations}) without final answer")
         return False, f"Process stopped after reaching maximum iterations ({self.config.max_iterations})."
