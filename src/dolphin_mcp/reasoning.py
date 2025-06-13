@@ -225,8 +225,14 @@ def extract_final_answer(text: str) -> Optional[str]:
         Final answer string if found, None otherwise
     """
     final_answer_matches = re.findall(r'```final_answer\s*(.*?)\s*```', text, re.DOTALL | re.IGNORECASE)
+    ask_matches = re.findall(r'<ask>\s*(.*?)\s*</ask>', text, re.DOTALL | re.IGNORECASE)
+    wait_matches = re.findall(r'<wait>\s*(.*?)\s*</wait>', text, re.DOTALL | re.IGNORECASE)
     if final_answer_matches:
         return final_answer_matches[-1].strip()
+    elif ask_matches:
+        return ask_matches[-1].strip()
+    elif wait_matches:
+        return wait_matches[-1].strip()
     return None
 
 
