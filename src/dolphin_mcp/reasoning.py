@@ -279,11 +279,13 @@ class MultiStepReasoner:
         """
         if not self.config.enable_planning:
             return "No specific plan - proceeding with direct execution."
+
+        is_reasoning = model_cfg.get("is_reasoning", False)
             
         # Create a planning conversation
         planning_conversation = [
             {
-                "role": "system", 
+                "role": "developer" if is_reasoning else "system",
                 "content": get_feedback_system_prompt(question, guidelines, is_initial_feedback=True, all_functions=all_functions)
             },
             {
@@ -325,10 +327,12 @@ The Answer Guidelines:
         Returns:
             Tuple of (success, final_answer_or_error)
         """
+
+        is_reasoning = model_cfg.get("is_reasoning", False)
         # Set up the reasoning conversation
         conversation = [
             {
-                "role": "system",
+                "role": "developer" if is_reasoning else "system",
                 "content": get_reasoning_system_prompt()
             },
             {

@@ -121,19 +121,33 @@ async def generate_with_openai_stream(client: AsyncOpenAI, model_name: str, conv
 
 async def generate_with_openai_sync(client: AsyncOpenAI, model_name: str, conversation: List[Dict], 
                                   formatted_functions: List[Dict], temperature: Optional[float] = None,
-                                  top_p: Optional[float] = None, max_tokens: Optional[int] = None) -> Dict:
+                                  top_p: Optional[float] = None, max_tokens: Optional[int] = None,
+                                  is_reasoning: bool = False, reasoning_effort: Optional[str] = "medium") -> Dict:
     """Internal function for non-streaming generation"""
     try:
-        response = await client.chat.completions.create(
-            model=model_name,
-            messages=conversation,
-            temperature=temperature,
-            top_p=top_p,
-            max_tokens=max_tokens,
-            tools=[{"type": "function", "function": f} for f in formatted_functions],
-            tool_choice="auto",
-            stream=False
-        )
+        if is_reasoning:
+            response = await client.chat.completions.create(
+                model=model_name,
+                messages=conversation,
+                response_format={
+                    "type": "text"
+                },
+                reasoning_effort=reasoning_effort,
+                tools=[{"type": "function", "function": f} for f in formatted_functions],
+                tool_choice="auto",
+                stream=False
+            )
+        else:
+            response = await client.chat.completions.create(
+                model=model_name,
+                messages=conversation,
+                temperature=temperature,
+                top_p=top_p,
+                max_tokens=max_tokens,
+                tools=[{"type": "function", "function": f} for f in formatted_functions],
+                tool_choice="auto",
+                stream=False
+            )
 
         choice = response.choices[0]
         assistant_text = choice.message.content or ""
@@ -189,6 +203,8 @@ async def generate_with_openai(conversation: List[Dict], model_cfg: Dict,
     temperature = model_cfg.get("temperature", None)
     top_p = model_cfg.get("top_p", None)
     max_tokens = model_cfg.get("max_tokens", None)
+    is_reasoning = model_cfg.get("is_reasoning", False)
+    reasoning_effort = model_cfg.get("reasoning_effort", None)
 
     # Format functions for OpenAI API
     formatted_functions = []
@@ -208,5 +224,5 @@ async def generate_with_openai(conversation: List[Dict], model_cfg: Dict,
     else:
         return await generate_with_openai_sync(
             client, model_name, conversation, formatted_functions,
-            temperature, top_p, max_tokens
+            temperature, top_p, max_tokens, is_reasoning, reasoning_effort
         )
