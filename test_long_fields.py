@@ -38,11 +38,13 @@ def test_long_content():
     # Check that the long field was replaced
     assert processed["message"] == "Hello world", "Short fields should remain unchanged"
     assert processed["status"] == "success", "Short fields should remain unchanged" 
-    assert processed["long_field"].startswith("<content_written_to_file:"), "Long field should be replaced with file reference"
+    assert "<content_written_to_file:" in processed["long_field"], "Long field should contain file reference"
     assert ".json" in processed["long_field"], "File reference should contain .json extension"
+    # Check that it starts with preview of content
+    assert processed["long_field"].startswith("x" * 200), "Long field should start with preview of content"
     
     # Extract file path and verify file exists and contains original data
-    file_path = processed["long_field"].replace("<content_written_to_file:", "").replace(">", "")
+    file_path = processed["long_field"].split("<content_written_to_file:")[1].replace(">", "")
     assert os.path.exists(file_path), "Referenced file should exist"
     
     with open(file_path, 'r') as f:
@@ -71,13 +73,15 @@ def test_nested_long_content():
     processed = process_long_fields(result)
     
     # Check that nested long fields were replaced
-    assert processed["metadata"]["description"].startswith("<content_written_to_file:"), "Nested long field should be replaced"
+    assert "<content_written_to_file:" in processed["metadata"]["description"], "Nested long field should contain file reference"
     assert processed["metadata"]["author"] == "test", "Short nested field should remain unchanged"
     assert processed["data"][0]["text"] == "short", "Short list item should remain unchanged"
-    assert processed["data"][1]["text"].startswith("<content_written_to_file:"), "Long list item should be replaced"
+    assert "<content_written_to_file:" in processed["data"][1]["text"], "Long list item should contain file reference"
+    # Check that it starts with preview of content
+    assert processed["metadata"]["description"].startswith("y" * 200), "Long field should start with preview of content"
     
     # Extract file path and verify file exists
-    file_path = processed["metadata"]["description"].replace("<content_written_to_file:", "").replace(">", "")
+    file_path = processed["metadata"]["description"].split("<content_written_to_file:")[1].replace(">", "")
     assert os.path.exists(file_path), "Referenced file should exist"
     
     with open(file_path, 'r') as f:
@@ -118,10 +122,12 @@ def test_custom_max_length():
     # With max_length=100, medium field should be replaced
     processed_custom = process_long_fields(result, max_length=100)
     assert processed_custom["short"] == result["short"]
-    assert processed_custom["medium"].startswith("<content_written_to_file:")
+    assert "<content_written_to_file:" in processed_custom["medium"]
+    # Check that it starts with preview of content
+    assert processed_custom["medium"].startswith("y" * 150), "Long field should start with preview of content"
     
     # Clean up
-    file_path = processed_custom["medium"].replace("<content_written_to_file:", "").replace(">", "")
+    file_path = processed_custom["medium"].split("<content_written_to_file:")[1].replace(">", "")
     if os.path.exists(file_path):
         os.unlink(file_path)
     

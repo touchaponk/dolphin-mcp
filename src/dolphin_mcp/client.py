@@ -494,7 +494,8 @@ def process_long_fields(result: Any, max_length: int = 5000) -> Any:
         # Now create a modified version with long fields replaced
         def replace_long_fields(obj: Any) -> Any:
             if isinstance(obj, str) and len(obj) > max_length:
-                return f"<content_written_to_file:{temp_file_path}>"
+                preview = obj[:200] + "..." if len(obj) > 200 else obj
+                return f"{preview}\n\n<content_written_to_file:{temp_file_path}>"
             elif isinstance(obj, dict):
                 return {k: replace_long_fields(v) for k, v in obj.items()}
             elif isinstance(obj, list):
