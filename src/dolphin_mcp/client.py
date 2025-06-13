@@ -7,6 +7,7 @@ import sys
 import json
 import asyncio
 import logging
+import tempfile
 from typing import Any, Dict, List, Optional, Union, AsyncGenerator
 
 from mcp.client.sse import sse_client
@@ -451,6 +452,62 @@ async def log_messages_to_file(messages: List[Dict], functions: List[Dict], log_
     except Exception as e:
         logger.error(f"Error logging messages to {log_path}: {str(e)}")
 
+def process_long_fields(result: Any, max_length: int = 5000) -> Any:
+    """
+    Process tool result and replace long string fields with file references.
+    
+    Args:
+        result: The tool result (can be dict, list, or any JSON-serializable value)
+        max_length: Maximum length for string fields before writing to file
+        
+    Returns:
+        Modified result with long fields replaced by file references
+    """
+    if not isinstance(result, (dict, list)):
+        return result
+    
+    # First check if any field is too long by recursively traversing
+    long_field_found = False
+    
+    def check_for_long_fields(obj: Any) -> bool:
+        if isinstance(obj, str) and len(obj) > max_length:
+            return True
+        elif isinstance(obj, dict):
+            return any(check_for_long_fields(v) for v in obj.values())
+        elif isinstance(obj, list):
+            return any(check_for_long_fields(item) for item in obj)
+        return False
+    
+    long_field_found = check_for_long_fields(result)
+    
+    if not long_field_found:
+        return result
+    
+    # If we found long fields, write the original result to a temp file
+    try:
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            json.dump(result, f, indent=2)
+            temp_file_path = f.name
+        
+        logger.info(f"Tool response contains long fields, full response written to: {temp_file_path}")
+        
+        # Now create a modified version with long fields replaced
+        def replace_long_fields(obj: Any) -> Any:
+            if isinstance(obj, str) and len(obj) > max_length:
+                preview = obj[:200] + "..." if len(obj) > 200 else obj
+                return f"{preview}\n\n<content_written_to_file:{temp_file_path}>"
+            elif isinstance(obj, dict):
+                return {k: replace_long_fields(v) for k, v in obj.items()}
+            elif isinstance(obj, list):
+                return [replace_long_fields(item) for item in obj]
+            return obj
+        
+        return replace_long_fields(result)
+        
+    except Exception as e:
+        logger.error(f"Error processing long fields: {str(e)}")
+        return result
+
 async def process_tool_call(tc: Dict, servers: Dict[str, MCPClient], quiet_mode: bool) -> Optional[Dict]:
     """Process a single tool call and return the result"""
     func_name = tc["function"]["name"]
@@ -506,11 +563,14 @@ async def process_tool_call(tc: Dict, servers: Dict[str, MCPClient], quiet_mode:
     if not quiet_mode:
         print(json.dumps(result, indent=2))
 
+    # Process the result to handle long fields
+    processed_result = process_long_fields(result)
+
     return {
         "role": "tool",
         "tool_call_id": tc["id"],
         "name": func_name,
-        "content": json.dumps(result)
+        "content": json.dumps(processed_result)
     }
 
 
