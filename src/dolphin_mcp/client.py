@@ -21,14 +21,15 @@ from .providers.lmstudio import generate_with_lmstudio
 from .reasoning import MultiStepReasoner, ReasoningConfig
 
 logger = logging.getLogger("dolphin_mcp")
-
+logging.getLogger(__name__).setLevel(logging.DEBUG)  # Set default logging level to DEBUG
 
 class SSEMCPClient:
     """Implementation for a SSE-based MCP server."""
 
-    def __init__(self, server_name: str, url: str):
+    def __init__(self, server_name: str, url: str, headers: Optional[Dict[str, str]] = None):
         self.server_name = server_name
         self.url = url
+        self.headers = headers or {}
         self.tools = []
         self._streams_context = None
         self._session_context = None
@@ -36,7 +37,8 @@ class SSEMCPClient:
 
     async def start(self):
         try:
-            self._streams_context = sse_client(url=self.url)
+            logger.debug(f"Starting SSE MCP server {self.server_name} at {self.url} with headers: {self.headers}")
+            self._streams_context = sse_client(url=self.url, headers=self.headers)
             streams = await self._streams_context.__aenter__()
 
             self._session_context = ClientSession(*streams)
@@ -47,6 +49,8 @@ class SSEMCPClient:
             return True
         except Exception as e:
             logger.error(f"Server {self.server_name}: SSE connection error: {str(e)}")
+            # print stack
+            traceback.print_exc()
             return False
 
     async def list_tools(self):
@@ -142,6 +146,7 @@ class MCPClient:
             pass
 
     async def start(self):
+        logger.debug(f"Starting MCP server {self.server_name} with command: {self.command} {self.args}")
         expanded_args = []
         for a in self.args:
             if isinstance(a, str) and "~" in a:
@@ -184,7 +189,8 @@ class MCPClient:
                     await asyncio.sleep(0.01)  # Throttle to avoid busy loop
             asyncio.create_task(_print_stderr(self.process))
             return await self._perform_initialize()
-        except Exception:
+        except Exception as e:
+            logger.error(f"Server {self.server_name}: Failed to start process: {str(e)}")
             return False
 
     async def _perform_initialize(self):
@@ -616,9 +622,28 @@ class MCPAgent:
         self.all_functions = []
         tool_timeout = provider_config.get("tool_timeout")
         for server_name, conf in servers_cfg.items():
-            if "url" in conf:  # SSE server
-                client = SSEMCPClient(server_name, conf["url"])
-            else:  # Local process-based server
+            # Check if server is disabled
+            if conf.get("disabled", False):
+                if not quiet_mode:
+                    print(f"[SKIP] {server_name} (disabled)")
+                continue
+                
+            # Determine transport type
+            transport = conf.get("transport", "stdio")  # Default to stdio for backward compatibility
+            
+            if transport == "sse" or ("url" in conf and transport != "stdio"):
+                # SSE server
+                if "url" not in conf:
+                    if not quiet_mode:
+                        print(f"[WARN] Server {server_name} has transport 'sse' but no URL specified")
+                    continue
+                client = SSEMCPClient(
+                    server_name=server_name, 
+                    url=conf["url"],
+                    headers=conf.get("headers")
+                )
+            else:
+                # Local process-based server (stdio transport)
                 client = MCPClient(
                     server_name=server_name,
                     command=conf.get("command"),
@@ -854,6 +879,7 @@ class MCPAgent:
 async def run_interaction(
     user_query: str,
     model_name: Optional[str] = None,
+    provider_config: Optional[dict] = None, # New parameter for provider config
     provider_config_path: str = "config.yml", # New parameter for provider config
     mcp_server_config: Optional[dict] = None, # Renamed from config
     mcp_server_config_path: str = "mcp_config.json", # Renamed from config_path
@@ -870,6 +896,7 @@ async def run_interaction(
     Args:
         user_query: The user's query
         model_name: Name of the model to use (optional)
+        provider_config: Provider server configuration dict
         provider_config_path: Path to the provider configuration file (default: config.yml)
         mcp_server_config: MCP server configuration dict (optional, if not provided will load from mcp_server_config_path)
         mcp_server_config_path: Path to the MCP server configuration file (default: mcp_config.json)
@@ -884,7 +911,8 @@ async def run_interaction(
         If stream=False: The final text response
         If stream=True: AsyncGenerator yielding chunks of the response
     """
-    provider_config = await load_config_from_file(provider_config_path)
+    if provider_config is None:
+        provider_config = await load_config_from_file(provider_config_path)
     agent = await MCPAgent.create(
         model_name=model_name,
         provider_config=provider_config, # Pass loaded provider_config

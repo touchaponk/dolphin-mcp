@@ -7,7 +7,8 @@ import sys
 import logging
 from .utils import parse_arguments, load_config_from_file # Added load_config_from_file
 from .client import run_interaction, MCPAgent # Added MCPAgent
-
+logger = logging.getLogger("dolphin_mcp")
+logger.setLevel(logging.DEBUG)  # Set default logging level to DEBUG
 async def main(): # Changed to async def
     """
     Main entry point for the CLI.
@@ -110,5 +111,12 @@ async def main(): # Changed to async def
         if not quiet_mode or final_text:
             print("\n" + final_text.strip() + "\n")
 
+# Synchronous entry point for console scripts
+def sync_main():
+    """
+    Synchronous wrapper for async main to be used as console entry point.
+    """
+    asyncio.run(main())
+
 if __name__ == "__main__":
-    asyncio.run(main()) # Changed to asyncio.run(main())
+    asyncio.run(main())  # Changed to asyncio.run(main())

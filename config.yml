@@ -62,13 +62,4 @@ mcpServers:
   #     # Or a script that sleeps:
   #     # - my_long_running_tool_server.py
   #     # - --sleep_duration
-  #     # - "30" # This server's tool would sleep for 30 seconds
-  #   # tool_timeout: 2 # REMOVED - Now global. Configure with the top-level 'tool_timeout'.
-  #   # Ensure your test server script actually implements a tool that can be called.
-  #   # The command above (http.server) is just a placeholder and won't work as an MCP server.
-  dolphin-demo-database-sqlite:
-    command: uvx
-    args:
-      - mcp-server-sqlite
-      - --db-path
-      - "~/.dolphin/dolphin.db"
+  
