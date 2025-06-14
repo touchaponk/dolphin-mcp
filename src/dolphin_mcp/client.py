@@ -452,7 +452,7 @@ async def log_messages_to_file(messages: List[Dict], functions: List[Dict], log_
     except Exception as e:
         logger.error(f"Error logging messages to {log_path}: {str(e)}")
 
-def process_long_fields(result: Any, max_length: int = 5000) -> Any:
+def process_long_fields(result: Any, max_length: int = 15000) -> Any:
     """
     Process tool result and replace long string fields with file references.
     
