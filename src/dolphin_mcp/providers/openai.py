@@ -8,21 +8,62 @@ from typing import Dict, List, Any, AsyncGenerator, Optional, Union
 
 from openai import AsyncOpenAI, APIError, RateLimitError
 
+def is_reasoning_model(model_name: str, is_reasoning_flag: bool = False) -> bool:
+    """
+    Detect if a model is a reasoning model based on name patterns or explicit flag.
+    
+    Args:
+        model_name: The model name to check
+        is_reasoning_flag: Explicit flag indicating reasoning model
+        
+    Returns:
+        True if the model is a reasoning model, False otherwise
+    """
+    if is_reasoning_flag:
+        return True
+    
+    # Common reasoning model patterns
+    reasoning_patterns = [
+        'o1',     # o1-preview, o1-mini
+        'o3',     # o3-mini, o3-medium
+        'o4',     # o4-mini
+    ]
+    
+    model_lower = model_name.lower()
+    return any(pattern in model_lower for pattern in reasoning_patterns)
+
 async def generate_with_openai_stream(client: AsyncOpenAI, model_name: str, conversation: List[Dict],
                                     formatted_functions: List[Dict], temperature: Optional[float] = None,
-                                    top_p: Optional[float] = None, max_tokens: Optional[int] = None) -> AsyncGenerator:
+                                    top_p: Optional[float] = None, max_tokens: Optional[int] = None,
+                                    is_reasoning: bool = False, reasoning_effort: Optional[str] = "medium") -> AsyncGenerator:
     """Internal function for streaming generation"""
     try:
-        response = await client.chat.completions.create(
-            model=model_name,
-            messages=conversation,
-            temperature=temperature,
-            top_p=top_p,
-            max_tokens=max_tokens,
-            tools=[{"type": "function", "function": f} for f in formatted_functions],
-            tool_choice="auto",
-            stream=True
-        )
+        # Check if this is a reasoning model
+        is_reasoning_model_flag = is_reasoning_model(model_name, is_reasoning)
+        
+        # Build API parameters based on model type
+        api_params = {
+            "model": model_name,
+            "messages": conversation,
+            "tools": [{"type": "function", "function": f} for f in formatted_functions],
+            "tool_choice": "auto",
+            "stream": True
+        }
+        
+        if is_reasoning_model_flag:
+            # Reasoning models don't support max_tokens, temperature, top_p
+            if reasoning_effort:
+                api_params["reasoning_effort"] = reasoning_effort
+        else:
+            # Regular models support these parameters
+            if temperature is not None:
+                api_params["temperature"] = temperature
+            if top_p is not None:
+                api_params["top_p"] = top_p
+            if max_tokens is not None:
+                api_params["max_tokens"] = max_tokens
+        
+        response = await client.chat.completions.create(**api_params)
 
         current_tool_calls = []
         current_content = ""
@@ -125,29 +166,33 @@ async def generate_with_openai_sync(client: AsyncOpenAI, model_name: str, conver
                                   is_reasoning: bool = False, reasoning_effort: Optional[str] = "medium") -> Dict:
     """Internal function for non-streaming generation"""
     try:
-        if is_reasoning:
-            response = await client.chat.completions.create(
-                model=model_name,
-                messages=conversation,
-                response_format={
-                    "type": "text"
-                },
-                reasoning_effort=reasoning_effort,
-                tools=[{"type": "function", "function": f} for f in formatted_functions],
-                tool_choice="auto",
-                stream=False
-            )
+        # Check if this is a reasoning model
+        is_reasoning_model_flag = is_reasoning_model(model_name, is_reasoning)
+        
+        # Build API parameters based on model type
+        api_params = {
+            "model": model_name,
+            "messages": conversation,
+            "tools": [{"type": "function", "function": f} for f in formatted_functions],
+            "tool_choice": "auto",
+            "stream": False
+        }
+        
+        if is_reasoning_model_flag:
+            # Reasoning models don't support max_tokens, temperature, top_p
+            api_params["response_format"] = {"type": "text"}
+            if reasoning_effort:
+                api_params["reasoning_effort"] = reasoning_effort
         else:
-            response = await client.chat.completions.create(
-                model=model_name,
-                messages=conversation,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_tokens,
-                tools=[{"type": "function", "function": f} for f in formatted_functions],
-                tool_choice="auto",
-                stream=False
-            )
+            # Regular models support these parameters
+            if temperature is not None:
+                api_params["temperature"] = temperature
+            if top_p is not None:
+                api_params["top_p"] = top_p
+            if max_tokens is not None:
+                api_params["max_tokens"] = max_tokens
+        
+        response = await client.chat.completions.create(**api_params)
 
         choice = response.choices[0]
         assistant_text = choice.message.content or ""
@@ -219,7 +264,7 @@ async def generate_with_openai(conversation: List[Dict], model_cfg: Dict,
     if stream:
         return generate_with_openai_stream(
             client, model_name, conversation, formatted_functions,
-            temperature, top_p, max_tokens
+            temperature, top_p, max_tokens, is_reasoning, reasoning_effort
         )
     else:
         return await generate_with_openai_sync(
