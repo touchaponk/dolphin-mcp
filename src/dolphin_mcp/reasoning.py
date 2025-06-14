@@ -345,7 +345,7 @@ The Answer Guidelines:
         self.python_context = {}
         
         for i in range(self.config.max_iterations):
-            self.config.reasoning_trace(f"Reasoning iteration {i + 1}/{self.config.max_iterations}")
+            self.config.reasoning_trace(f"Step {i + 1}:")
 
             try:
                 # Generate response
@@ -353,7 +353,7 @@ The Answer Guidelines:
                 assistant_text = result.get("assistant_text", "")
                 tool_calls = result.get("tool_calls", [])
 
-                self.config.reasoning_trace(f"Assistant response: {assistant_text}...")
+                self.config.reasoning_trace(f"{assistant_text}")
 
                 # Check for final answer
                 final_answer = extract_final_answer(assistant_text)
