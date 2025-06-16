@@ -47,18 +47,22 @@ Always add the `<end_code>` tag at the end of your code block to indicate the en
 Use print() in your_python_code to retain important outputs.
 The code style should be step by step like a data analyst execute cell by cell in a jupyter notebook.
 The context of variable context will persist between multiple executions.
-You can only import library with the authorized library as follows: ["numpy", "pandas", "json", "csv", "glob", "markdown", "os"]
+You can only import library with the authorized library as follows: 
+- ["numpy", "pandas", "json", "csv", "glob", "markdown", "os"]
 The user will execute the code then show you the output of your code, and you will then use that output to continue your reasoning.
 
 For Call-Tools, please follow the format and schema in Available Tools section.
 **Choose only one of Code or Call-Tool in each step.**
 
  3. Observation: Observe the output of your code from block ```output ... ```:
-When you need to finalize your answer, Response with block ```final_answer ... ``` format as below:
+When you already complete the task, Response with block ```final_answer ... ``` format as below:
 ```final_answer
-Your Final Answer
-```<end_final_answer>
-Always add the `<end_final_answer>` tag at the end of your code block to indicate the end of the final answer.
+...<Your complete explanation goes here.>...
+```
+When you lack sufficient information or if the user's request is ambiguous, use the format:
+```final_answer
+...<Your specific question for the user goes here.>...
+```
 
 Rules:
  - ALWAYS check available tools before assuming information is unavailable.
@@ -87,13 +91,13 @@ Sub-questions:
 - ...
 - ...
 
-2. Extract the entities from the user query and the answer guideline.
+2. Extract the entities from the user query and the guideline.
 Example:
 Entity Extraction:
 - ...
 - ...
 
-3. Identify relevant tools and approaches that relate to the user query and answer guideline.
+3. Identify relevant tools and approaches that relate to the user query and guideline.
 Don't include your own interpretation or explanation, just identify the relevant tools and methods.
 Example:
 ========== START of Relevant Tools ==========
@@ -107,7 +111,7 @@ Example:
 Constraints:
 ```
 ... the user query asks about ... which requires...
-... the answer guideline specifies ... which means...
+... the guideline specifies ... which means...
 ```
 
 5. Outline a solution approach that addresses the constraints and leverages available tools.
@@ -292,7 +296,7 @@ class MultiStepReasoner:
                 "role": "user",
                 "content": f"""The User Query: 
 - {question}
-The Answer Guidelines: 
+The Guidelines: 
 - {guidelines}
 """
             }
