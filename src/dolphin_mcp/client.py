@@ -452,7 +452,7 @@ async def log_messages_to_file(messages: List[Dict], functions: List[Dict], log_
     except Exception as e:
         logger.error(f"Error logging messages to {log_path}: {str(e)}")
 
-def process_long_fields(result: Any, max_length: int = 15000) -> Any:
+def process_long_fields(tool_result: Any, max_length: int = 15000) -> Any:
     """
     Process tool result and replace long string fields with file references.
     
@@ -465,6 +465,19 @@ def process_long_fields(result: Any, max_length: int = 15000) -> Any:
     """
     if not isinstance(result, (dict, list)):
         return result
+    
+    result_is_content_text = False
+    result = tool_result
+     # extract result.content[0].text as JSON if available
+    if isinstance(result, dict) and "content" in result and isinstance(result["content"], list):
+        if len(result["content"]) > 0 and isinstance(result["content"][0], dict) and "text" in result["content"][0]:
+            try:
+                logger.info("Extracting content.text as JSON")
+                result = json.loads(result["content"][0]["text"])
+                result_is_content_text = True
+            except json.JSONDecodeError:
+                logger.error("Failed to decode content.text as JSON, using original result")
+    
     
     # First check if any field is too long by recursively traversing
     long_field_found = False
@@ -481,7 +494,7 @@ def process_long_fields(result: Any, max_length: int = 15000) -> Any:
     long_field_found = check_for_long_fields(result)
     
     if not long_field_found:
-        return result
+        return tool_result
     
     # If we found long fields, write the original result to a temp file
     try:
@@ -495,6 +508,7 @@ def process_long_fields(result: Any, max_length: int = 15000) -> Any:
         def replace_long_fields(obj: Any) -> Any:
             if isinstance(obj, str) and len(obj) > max_length:
                 preview = obj[:200] + "..." if len(obj) > 200 else obj
+                logger.info(f"Field too long, replacing with file reference: {preview}...<content_written_to_file:{temp_file_path}>")
                 return f"{preview}\n\n<content_written_to_file:{temp_file_path}>"
             elif isinstance(obj, dict):
                 return {k: replace_long_fields(v) for k, v in obj.items()}
@@ -502,11 +516,17 @@ def process_long_fields(result: Any, max_length: int = 15000) -> Any:
                 return [replace_long_fields(item) for item in obj]
             return obj
         
-        return replace_long_fields(result)
+        result = replace_long_fields(result)
+        if result_is_content_text:
+            # If we extracted content.text as JSON, we need to wrap it back
+            tool_result["content"][0]["text"] = json.dumps(result, indent=0, ensure_ascii=False)
+        else:
+            tool_result = result
+        return tool_result
         
     except Exception as e:
         logger.error(f"Error processing long fields: {str(e)}")
-        return result
+        return tool_result
 
 async def process_tool_call(tc: Dict, servers: Dict[str, MCPClient], quiet_mode: bool) -> Optional[Dict]:
     """Process a single tool call and return the result"""
