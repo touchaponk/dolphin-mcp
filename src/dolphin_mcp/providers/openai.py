@@ -26,14 +26,29 @@ async def generate_with_openai_stream(client: AsyncOpenAI, model_name: str, conv
 
         current_tool_calls = []
         current_content = ""
+        current_reasoning = ""
 
         async for chunk in response:
             delta = chunk.choices[0].delta
             
             if delta.content:
                 # Immediately yield each token without buffering
-                yield {"assistant_text": delta.content, "tool_calls": [], "is_chunk": True, "token": True}
+                yield {"assistant_text": delta.content, "tool_calls": [], "is_chunk": True, "token": True, "reasoning": ""}
                 current_content += delta.content
+            
+            # Handle reasoning content if present
+            reasoning_chunk = ""
+            if hasattr(delta, 'reasoning') and delta.reasoning:
+                reasoning_chunk = delta.reasoning
+                current_reasoning += reasoning_chunk
+                # Yield reasoning tokens separately
+                yield {"assistant_text": "", "tool_calls": [], "is_chunk": True, "token": False, "reasoning": reasoning_chunk}
+            elif hasattr(delta, '_raw_data') and delta._raw_data and isinstance(delta._raw_data, dict):
+                # Fallback: check raw data for reasoning
+                reasoning_chunk = delta._raw_data.get('reasoning', '')
+                if reasoning_chunk and isinstance(reasoning_chunk, str):
+                    current_reasoning += reasoning_chunk
+                    yield {"assistant_text": "", "tool_calls": [], "is_chunk": True, "token": False, "reasoning": reasoning_chunk}
 
             # Handle tool call updates
             if delta.tool_calls:
@@ -113,11 +128,12 @@ async def generate_with_openai_stream(client: AsyncOpenAI, model_name: str, conv
                 yield {
                     "assistant_text": current_content,
                     "tool_calls": final_tool_calls,
-                    "is_chunk": False
+                    "is_chunk": False,
+                    "reasoning": current_reasoning
                 }
 
     except Exception as e:
-        yield {"assistant_text": f"OpenAI error: {str(e)}", "tool_calls": [], "is_chunk": False}
+        yield {"assistant_text": f"OpenAI error: {str(e)}", "tool_calls": [], "is_chunk": False, "reasoning": ""}
 
 async def generate_with_openai_sync(client: AsyncOpenAI, model_name: str, conversation: List[Dict], 
                                   formatted_functions: List[Dict], temperature: Optional[float] = None,
@@ -152,6 +168,25 @@ async def generate_with_openai_sync(client: AsyncOpenAI, model_name: str, conver
         choice = response.choices[0]
         assistant_text = choice.message.content or ""
         tool_calls = []
+        reasoning = ""
+        
+        # Extract reasoning content if available
+        # Check if message has reasoning field (for reasoning models)
+        if hasattr(choice.message, 'reasoning') and choice.message.reasoning:
+            reasoning = choice.message.reasoning
+        elif hasattr(choice.message, '_raw_data') and choice.message._raw_data and isinstance(choice.message._raw_data, dict):
+            # Fallback: check raw data for reasoning content
+            reasoning = choice.message._raw_data.get('reasoning', '')
+            if not isinstance(reasoning, str):
+                reasoning = ""
+        elif hasattr(response, '_raw_data') and response._raw_data and isinstance(response._raw_data, dict):
+            # Another fallback: check response raw data
+            if 'choices' in response._raw_data and len(response._raw_data['choices']) > 0:
+                choice_data = response._raw_data['choices'][0]
+                if 'message' in choice_data and isinstance(choice_data['message'], dict):
+                    reasoning = choice_data['message'].get('reasoning', '')
+                    if not isinstance(reasoning, str):
+                        reasoning = ""
         
         if hasattr(choice.message, 'tool_calls') and choice.message.tool_calls:
             for tc in choice.message.tool_calls:
@@ -169,14 +204,14 @@ async def generate_with_openai_sync(client: AsyncOpenAI, model_name: str, conver
                     except json.JSONDecodeError:
                         tool_call["function"]["arguments"] = "{}"
                     tool_calls.append(tool_call)
-        return {"assistant_text": assistant_text, "tool_calls": tool_calls}
+        return {"assistant_text": assistant_text, "tool_calls": tool_calls, "reasoning": reasoning}
 
     except APIError as e:
-        return {"assistant_text": f"OpenAI API error: {str(e)}", "tool_calls": []}
+        return {"assistant_text": f"OpenAI API error: {str(e)}", "tool_calls": [], "reasoning": ""}
     except RateLimitError as e:
-        return {"assistant_text": f"OpenAI rate limit: {str(e)}", "tool_calls": []}
+        return {"assistant_text": f"OpenAI rate limit: {str(e)}", "tool_calls": [], "reasoning": ""}
     except Exception as e:
-        return {"assistant_text": f"Unexpected OpenAI error: {str(e)}", "tool_calls": []}
+        return {"assistant_text": f"Unexpected OpenAI error: {str(e)}", "tool_calls": [], "reasoning": ""}
 
 async def generate_with_openai(conversation: List[Dict], model_cfg: Dict, 
                              all_functions: List[Dict], stream: bool = False) -> Union[Dict, AsyncGenerator]:
