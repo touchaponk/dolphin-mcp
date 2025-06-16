@@ -14,200 +14,79 @@ async def generate_with_openai_stream(client: AsyncOpenAI, model_name: str, conv
                                     is_reasoning: bool = False, reasoning_effort: Optional[str] = "medium") -> AsyncGenerator:
     """Internal function for streaming generation"""
     try:
-        if is_reasoning:
-            # Use Response API for reasoning models
-            input_text = _convert_messages_to_input(conversation)
+        # Use Response API for all models
+        input_text = _convert_messages_to_input(conversation)
+        
+        # Build tools parameter for Response API
+        tools = []
+        if formatted_functions:
+            for func in formatted_functions:
+                tools.append({
+                    "type": "function",
+                    "function": func
+                })
+        
+        response = await client.responses.create(
+            model=model_name,
+            input=input_text,
+            temperature=temperature,
+            top_p=top_p,
+            max_output_tokens=max_tokens,
+            tools=tools if tools else None,
+            tool_choice="auto" if tools else None,
+            include=["reasoning.encrypted_content"],  # Include reasoning in response
+            stream=True
+        )
+        
+        # Handle Response API streaming format
+        current_tool_calls = []
+        current_content = ""
+        current_reasoning = ""
+
+        async for chunk in response:
+            # The Response API streaming format is different from Chat Completions
+            # We need to handle ResponseStreamEvent format
+            assistant_text_chunk = ""
+            reasoning_chunk = ""
             
-            # Build tools parameter for Response API
-            tools = []
-            if formatted_functions:
-                for func in formatted_functions:
-                    tools.append({
-                        "type": "function",
-                        "function": func
-                    })
+            # Extract content from Response API stream chunk
+            if hasattr(chunk, 'text') and chunk.text:
+                if hasattr(chunk.text, 'delta'):
+                    assistant_text_chunk = chunk.text.delta or ""
+                elif hasattr(chunk.text, 'content'):
+                    assistant_text_chunk = chunk.text.content or ""
             
-            response = await client.responses.create(
-                model=model_name,
-                input=input_text,
-                temperature=temperature,
-                top_p=top_p,
-                max_output_tokens=max_tokens,
-                tools=tools if tools else None,
-                tool_choice="auto" if tools else None,
-                include=["reasoning.encrypted_content"],  # Include reasoning in response
-                stream=True
-            )
+            # Extract reasoning from Response API stream chunk
+            if hasattr(chunk, 'reasoning') and chunk.reasoning:
+                if hasattr(chunk.reasoning, 'delta'):
+                    reasoning_chunk = chunk.reasoning.delta or ""
+                elif hasattr(chunk.reasoning, 'encrypted_content'):
+                    reasoning_chunk = chunk.reasoning.encrypted_content or ""
             
-            # Handle Response API streaming format
-            current_tool_calls = []
-            current_content = ""
-            current_reasoning = ""
-
-            async for chunk in response:
-                # The Response API streaming format is different from Chat Completions
-                # We need to handle ResponseStreamEvent format
-                assistant_text_chunk = ""
-                reasoning_chunk = ""
-                
-                # Extract content from Response API stream chunk
-                if hasattr(chunk, 'text') and chunk.text:
-                    if hasattr(chunk.text, 'delta'):
-                        assistant_text_chunk = chunk.text.delta or ""
-                    elif hasattr(chunk.text, 'content'):
-                        assistant_text_chunk = chunk.text.content or ""
-                
-                # Extract reasoning from Response API stream chunk
-                if hasattr(chunk, 'reasoning') and chunk.reasoning:
-                    if hasattr(chunk.reasoning, 'delta'):
-                        reasoning_chunk = chunk.reasoning.delta or ""
-                    elif hasattr(chunk.reasoning, 'encrypted_content'):
-                        reasoning_chunk = chunk.reasoning.encrypted_content or ""
-                
-                # Yield text chunks
-                if assistant_text_chunk:
-                    yield {"assistant_text": assistant_text_chunk, "tool_calls": [], "is_chunk": True, "token": True, "reasoning": ""}
-                    current_content += assistant_text_chunk
-                
-                # Yield reasoning chunks
-                if reasoning_chunk:
-                    yield {"assistant_text": "", "tool_calls": [], "is_chunk": True, "token": False, "reasoning": reasoning_chunk}
-                    current_reasoning += reasoning_chunk
-                
-                # Handle tool calls (if supported by Response API)
-                if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
-                    # Similar logic to Chat Completions API tool call handling
-                    # This part might need adjustment based on actual Response API format
-                    pass
-                
-                # Check if this is the final chunk
-                if hasattr(chunk, 'done') and chunk.done:
-                    yield {
-                        "assistant_text": current_content,
-                        "tool_calls": current_tool_calls,
-                        "is_chunk": False,
-                        "reasoning": current_reasoning
-                    }
-        else:
-            # Use Chat Completions API for non-reasoning models (existing logic)
-            response = await client.chat.completions.create(
-                model=model_name,
-                messages=conversation,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_tokens,
-                tools=[{"type": "function", "function": f} for f in formatted_functions],
-                tool_choice="auto",
-                stream=True
-            )
-
-            current_tool_calls = []
-            current_content = ""
-            current_reasoning = ""
-
-            async for chunk in response:
-                delta = chunk.choices[0].delta
-                
-                if delta.content:
-                    # Immediately yield each token without buffering
-                    yield {"assistant_text": delta.content, "tool_calls": [], "is_chunk": True, "token": True, "reasoning": ""}
-                    current_content += delta.content
-                
-                # Handle reasoning content if present
-                reasoning_chunk = ""
-                if hasattr(delta, 'reasoning') and delta.reasoning:
-                    reasoning_chunk = delta.reasoning
-                    current_reasoning += reasoning_chunk
-                    # Yield reasoning tokens separately
-                    yield {"assistant_text": "", "tool_calls": [], "is_chunk": True, "token": False, "reasoning": reasoning_chunk}
-                elif hasattr(delta, '_raw_data') and delta._raw_data and isinstance(delta._raw_data, dict):
-                    # Fallback: check raw data for reasoning
-                    reasoning_chunk = delta._raw_data.get('reasoning', '')
-                    if reasoning_chunk and isinstance(reasoning_chunk, str):
-                        current_reasoning += reasoning_chunk
-                        yield {"assistant_text": "", "tool_calls": [], "is_chunk": True, "token": False, "reasoning": reasoning_chunk}
-
-                # Handle tool call updates
-                if delta.tool_calls:
-                    for tool_call in delta.tool_calls:
-                        # Initialize or update tool call
-                        while tool_call.index >= len(current_tool_calls):
-                            current_tool_calls.append({
-                                "id": "",
-                                "function": {
-                                    "name": "",
-                                    "arguments": ""
-                                }
-                            })
-                        
-                        current_tool = current_tool_calls[tool_call.index]
-                        
-                        # Update tool call properties
-                        if tool_call.id:
-                            current_tool["id"] = tool_call.id
-                        
-                        if tool_call.function.name:
-                            current_tool["function"]["name"] = (
-                                current_tool["function"]["name"] + tool_call.function.name
-                            )
-                        
-                        if tool_call.function.arguments:
-                            # Properly accumulate JSON arguments
-                            current_args = current_tool["function"]["arguments"]
-                            new_args = tool_call.function.arguments
-                            
-                            # Handle special cases for JSON accumulation
-                            if new_args.startswith("{") and not current_args:
-                                current_tool["function"]["arguments"] = new_args
-                            elif new_args.endswith("}") and current_args:
-                                # If we're receiving the end of the JSON object
-                                if not current_args.endswith("}"):
-                                    current_tool["function"]["arguments"] = current_args + new_args
-                            else:
-                                # Middle part of JSON - append carefully
-                                current_tool["function"]["arguments"] += new_args
-
-                # If this is the last chunk, yield final state with complete tool calls
-                if chunk.choices[0].finish_reason is not None:
-                    # Clean up and validate tool calls
-                    final_tool_calls = []
-                    for tc in current_tool_calls:
-                        if tc["id"] and tc["function"]["name"]:
-                            try:
-                                # Ensure arguments is valid JSON
-                                args = tc["function"]["arguments"].strip()
-                                if not args or args.isspace():
-                                    args = "{}"
-                                # Parse and validate JSON
-                                parsed_args = json.loads(args)
-                                tc["function"]["arguments"] = json.dumps(parsed_args)
-                                final_tool_calls.append(tc)
-                            except json.JSONDecodeError:
-                                # If arguments are malformed, try to fix common issues
-                                args = tc["function"]["arguments"].strip()
-                                # Remove any trailing commas
-                                args = args.rstrip(",")
-                                # Ensure proper JSON structure
-                                if not args.startswith("{"):
-                                    args = "{" + args
-                                if not args.endswith("}"):
-                                    args = args + "}"
-                                try:
-                                    # Try parsing again after fixes
-                                    parsed_args = json.loads(args)
-                                    tc["function"]["arguments"] = json.dumps(parsed_args)
-                                    final_tool_calls.append(tc)
-                                except json.JSONDecodeError:
-                                    # If still invalid, default to empty object
-                                    tc["function"]["arguments"] = "{}"
-                                    final_tool_calls.append(tc)
-
-                    yield {
-                        "assistant_text": current_content,
-                        "tool_calls": final_tool_calls,
-                        "is_chunk": False,
-                        "reasoning": current_reasoning
-                    }
+            # Yield text chunks
+            if assistant_text_chunk:
+                yield {"assistant_text": assistant_text_chunk, "tool_calls": [], "is_chunk": True, "token": True, "reasoning": ""}
+                current_content += assistant_text_chunk
+            
+            # Yield reasoning chunks
+            if reasoning_chunk:
+                yield {"assistant_text": "", "tool_calls": [], "is_chunk": True, "token": False, "reasoning": reasoning_chunk}
+                current_reasoning += reasoning_chunk
+            
+            # Handle tool calls (if supported by Response API)
+            if hasattr(chunk, 'tool_calls') and chunk.tool_calls:
+                # Similar logic to Chat Completions API tool call handling
+                # This part might need adjustment based on actual Response API format
+                pass
+            
+            # Check if this is the final chunk
+            if hasattr(chunk, 'done') and chunk.done:
+                yield {
+                    "assistant_text": current_content,
+                    "tool_calls": current_tool_calls,
+                    "is_chunk": False,
+                    "reasoning": current_reasoning
+                }
 
     except Exception as e:
         yield {"assistant_text": f"OpenAI error: {str(e)}", "tool_calls": [], "is_chunk": False, "reasoning": ""}
@@ -228,130 +107,76 @@ async def generate_with_openai_sync(client: AsyncOpenAI, model_name: str, conver
                                   is_reasoning: bool = False, reasoning_effort: Optional[str] = "medium") -> Dict:
     """Internal function for non-streaming generation"""
     try:
-        if is_reasoning:
-            # Use Response API for reasoning models
-            input_text = _convert_messages_to_input(conversation)
-            
-            # Build tools parameter for Response API
-            tools = []
-            if formatted_functions:
-                for func in formatted_functions:
-                    tools.append({
-                        "type": "function",
-                        "function": func
-                    })
-            
-            response = await client.responses.create(
-                model=model_name,
-                input=input_text,
-                temperature=temperature,
-                top_p=top_p,
-                max_output_tokens=max_tokens,
-                tools=tools if tools else None,
-                tool_choice="auto" if tools else None,
-                include=["reasoning.encrypted_content"],  # Include reasoning in response
-                stream=False
-            )
-        else:
-            # Use Chat Completions API for non-reasoning models
-            response = await client.chat.completions.create(
-                model=model_name,
-                messages=conversation,
-                temperature=temperature,
-                top_p=top_p,
-                max_tokens=max_tokens,
-                tools=[{"type": "function", "function": f} for f in formatted_functions],
-                tool_choice="auto",
-                stream=False
-            )
+        # Use Response API for all models
+        input_text = _convert_messages_to_input(conversation)
+        
+        # Build tools parameter for Response API
+        tools = []
+        if formatted_functions:
+            for func in formatted_functions:
+                tools.append({
+                    "type": "function",
+                    "function": func
+                })
+        
+        response = await client.responses.create(
+            model=model_name,
+            input=input_text,
+            temperature=temperature,
+            top_p=top_p,
+            max_output_tokens=max_tokens,
+            tools=tools if tools else None,
+            tool_choice="auto" if tools else None,
+            include=["reasoning.encrypted_content"],  # Include reasoning in response
+            stream=False
+        )
 
-        if is_reasoning:
-            # Handle Response API response format
-            assistant_text = ""
-            tool_calls = []
-            reasoning = ""
-            
-            # Extract content from Response API format
-            if hasattr(response, 'text') and response.text:
-                if hasattr(response.text, 'content'):
-                    assistant_text = response.text.content or ""
-                else:
-                    assistant_text = str(response.text)
-            # Ensure assistant_text is a string
-            if not isinstance(assistant_text, str):
-                assistant_text = str(assistant_text) if assistant_text else ""
-            
-            # Extract reasoning from Response API format
-            if hasattr(response, 'reasoning') and response.reasoning:
-                # Try different possible structures for reasoning
-                if hasattr(response.reasoning, 'encrypted_content'):
-                    reasoning = response.reasoning.encrypted_content or ""
-                elif hasattr(response.reasoning, 'content'):
-                    reasoning = response.reasoning.content or ""
-                else:
-                    reasoning = str(response.reasoning)
-                # Ensure reasoning is a string
-                if not isinstance(reasoning, str):
-                    reasoning = str(reasoning) if reasoning else ""
-            
-            # Extract tool calls from Response API format
-            if hasattr(response, 'tool_calls') and response.tool_calls:
-                for tc in response.tool_calls:
-                    if hasattr(tc, 'type') and tc.type == 'function':
-                        tool_call = {
-                            "id": getattr(tc, 'id', ''),
-                            "function": {
-                                "name": tc.function.name if hasattr(tc, 'function') else '',
-                                "arguments": tc.function.arguments if hasattr(tc, 'function') and hasattr(tc.function, 'arguments') else "{}"
-                            }
+        # Handle Response API response format
+        assistant_text = ""
+        tool_calls = []
+        reasoning = ""
+        
+        # Extract content from Response API format
+        if hasattr(response, 'text') and response.text:
+            if hasattr(response.text, 'content'):
+                assistant_text = response.text.content or ""
+            else:
+                assistant_text = str(response.text)
+        # Ensure assistant_text is a string
+        if not isinstance(assistant_text, str):
+            assistant_text = str(assistant_text) if assistant_text else ""
+        
+        # Extract reasoning from Response API format
+        if hasattr(response, 'reasoning') and response.reasoning:
+            # Try different possible structures for reasoning
+            if hasattr(response.reasoning, 'encrypted_content'):
+                reasoning = response.reasoning.encrypted_content or ""
+            elif hasattr(response.reasoning, 'content'):
+                reasoning = response.reasoning.content or ""
+            else:
+                reasoning = str(response.reasoning)
+            # Ensure reasoning is a string
+            if not isinstance(reasoning, str):
+                reasoning = str(reasoning) if reasoning else ""
+        
+        # Extract tool calls from Response API format
+        if hasattr(response, 'tool_calls') and response.tool_calls:
+            for tc in response.tool_calls:
+                if hasattr(tc, 'type') and tc.type == 'function':
+                    tool_call = {
+                        "id": getattr(tc, 'id', ''),
+                        "function": {
+                            "name": tc.function.name if hasattr(tc, 'function') else '',
+                            "arguments": tc.function.arguments if hasattr(tc, 'function') and hasattr(tc.function, 'arguments') else "{}"
                         }
-                        # Ensure arguments is valid JSON
-                        try:
-                            json.loads(tool_call["function"]["arguments"])
-                        except json.JSONDecodeError:
-                            tool_call["function"]["arguments"] = "{}"
-                        tool_calls.append(tool_call)
-        else:
-            # Handle Chat Completions API response format (existing logic)
-            choice = response.choices[0]
-            assistant_text = choice.message.content or ""
-            tool_calls = []
-            reasoning = ""
-            
-            # Extract reasoning content if available
-            # Check if message has reasoning field (for reasoning models)
-            if hasattr(choice.message, 'reasoning') and choice.message.reasoning:
-                reasoning = choice.message.reasoning
-            elif hasattr(choice.message, '_raw_data') and choice.message._raw_data and isinstance(choice.message._raw_data, dict):
-                # Fallback: check raw data for reasoning content
-                reasoning = choice.message._raw_data.get('reasoning', '')
-                if not isinstance(reasoning, str):
-                    reasoning = ""
-            elif hasattr(response, '_raw_data') and response._raw_data and isinstance(response._raw_data, dict):
-                # Another fallback: check response raw data
-                if 'choices' in response._raw_data and len(response._raw_data['choices']) > 0:
-                    choice_data = response._raw_data['choices'][0]
-                    if 'message' in choice_data and isinstance(choice_data['message'], dict):
-                        reasoning = choice_data['message'].get('reasoning', '')
-                        if not isinstance(reasoning, str):
-                            reasoning = ""
-            
-            if hasattr(choice.message, 'tool_calls') and choice.message.tool_calls:
-                for tc in choice.message.tool_calls:
-                    if tc.type == 'function':
-                        tool_call = {
-                            "id": tc.id,
-                            "function": {
-                                "name": tc.function.name,
-                                "arguments": tc.function.arguments or "{}"
-                            }
-                        }
-                        # Ensure arguments is valid JSON
-                        try:
-                            json.loads(tool_call["function"]["arguments"])
-                        except json.JSONDecodeError:
-                            tool_call["function"]["arguments"] = "{}"
-                        tool_calls.append(tool_call)
+                    }
+                    # Ensure arguments is valid JSON
+                    try:
+                        json.loads(tool_call["function"]["arguments"])
+                    except json.JSONDecodeError:
+                        tool_call["function"]["arguments"] = "{}"
+                    tool_calls.append(tool_call)
+        
         return {"assistant_text": assistant_text, "tool_calls": tool_calls, "reasoning": reasoning}
 
     except APIError as e:

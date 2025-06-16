@@ -54,19 +54,24 @@ class TestReasoningTokens:
 
     @pytest.mark.asyncio
     async def test_sync_without_reasoning(self):
-        """Test that non-reasoning models work normally."""
+        """Test that non-reasoning models work normally using Response API."""
         
-        # Mock OpenAI client and response without reasoning
+        # Mock OpenAI client and response for Response API (unified approach)
         mock_client = AsyncMock()
         mock_response = MagicMock()
-        mock_choice = MagicMock()
-        mock_choice.message.content = "Regular response"
-        mock_choice.message.tool_calls = None
-        # Explicitly set reasoning to None to simulate no reasoning field
-        mock_choice.message.reasoning = None
         
-        mock_response.choices = [mock_choice]
-        mock_client.chat.completions.create.return_value = mock_response
+        # Mock the Response API response structure
+        mock_text = MagicMock()
+        mock_text.content = "Regular response"
+        mock_response.text = mock_text
+        
+        mock_reasoning = MagicMock()
+        mock_reasoning.encrypted_content = ""  # Empty reasoning for non-reasoning models
+        mock_response.reasoning = mock_reasoning
+        
+        mock_response.tool_calls = None
+        
+        mock_client.responses.create.return_value = mock_response
         
         # Call the function
         result = await generate_with_openai_sync(
@@ -83,50 +88,49 @@ class TestReasoningTokens:
 
     @pytest.mark.asyncio
     async def test_streaming_reasoning_extraction(self):
-        """Test reasoning token extraction in streaming mode."""
+        """Test reasoning token extraction in streaming mode using Response API."""
         
         # Mock OpenAI client
         mock_client = AsyncMock()
         
-        # Create mock streaming chunks
+        # Create mock streaming chunks for Response API format
         mock_chunks = []
         
         # Chunk 1: Reasoning content
         chunk1 = MagicMock()
-        chunk1.choices = [MagicMock()]
-        chunk1.choices[0].delta.content = None
-        chunk1.choices[0].delta.reasoning = "Let me think step by step..."
-        chunk1.choices[0].finish_reason = None
+        chunk1.reasoning = MagicMock()
+        chunk1.reasoning.delta = "Let me think step by step..."
+        chunk1.text = None
+        chunk1.done = False
         mock_chunks.append(chunk1)
         
         # Chunk 2: More reasoning
         chunk2 = MagicMock()
-        chunk2.choices = [MagicMock()]
-        chunk2.choices[0].delta.content = None
-        chunk2.choices[0].delta.reasoning = " This is a complex problem."
-        chunk2.choices[0].finish_reason = None
+        chunk2.reasoning = MagicMock()
+        chunk2.reasoning.delta = " This is a complex problem."
+        chunk2.text = None
+        chunk2.done = False
         mock_chunks.append(chunk2)
         
         # Chunk 3: Content
         chunk3 = MagicMock()
-        chunk3.choices = [MagicMock()]
-        chunk3.choices[0].delta.content = "The answer is 42."
-        chunk3.choices[0].delta.reasoning = None
-        chunk3.choices[0].finish_reason = None
+        chunk3.text = MagicMock()
+        chunk3.text.delta = "The answer is 42."
+        chunk3.reasoning = None
+        chunk3.done = False
         mock_chunks.append(chunk3)
         
         # Final chunk
         chunk4 = MagicMock()
-        chunk4.choices = [MagicMock()]
-        chunk4.choices[0].delta.content = None
-        chunk4.choices[0].delta.reasoning = None
-        chunk4.choices[0].finish_reason = "stop"
+        chunk4.text = None
+        chunk4.reasoning = None
+        chunk4.done = True
         mock_chunks.append(chunk4)
         
         # Mock the async iteration
         mock_response = AsyncMock()
         mock_response.__aiter__.return_value = iter(mock_chunks)
-        mock_client.chat.completions.create.return_value = mock_response
+        mock_client.responses.create.return_value = mock_response
         
         # Call the streaming function
         chunks_received = []
@@ -200,78 +204,66 @@ class TestReasoningTokens:
 
     @pytest.mark.asyncio
     async def test_uses_chat_completions_for_non_reasoning(self):
-        """Test that Chat Completions API is used when is_reasoning=False."""
+        """Test that Response API is used for non-reasoning models (unified approach)."""
         
-        # Mock OpenAI client and response for Chat Completions API
+        # Mock OpenAI client and response for Response API
         mock_client = AsyncMock()
         mock_response = MagicMock()
-        mock_choice = MagicMock()
-        mock_choice.message.content = "Chat completion result"
-        mock_choice.message.tool_calls = None
-        mock_choice.message.reasoning = None
         
-        mock_response.choices = [mock_choice]
-        mock_client.chat.completions.create.return_value = mock_response
+        # Mock the Response API response structure
+        mock_text = MagicMock()
+        mock_text.content = "Response API result"
+        mock_response.text = mock_text
+        
+        mock_reasoning = MagicMock()
+        mock_reasoning.encrypted_content = ""  # Empty reasoning for non-reasoning models
+        mock_response.reasoning = mock_reasoning
+        
+        mock_response.tool_calls = None
+        
+        mock_client.responses.create.return_value = mock_response
         
         # Call the function with is_reasoning=False
         result = await generate_with_openai_sync(
             mock_client, "gpt-4", [{"role": "user", "content": "test"}], [], is_reasoning=False
         )
         
-        # Verify that chat.completions.create was called, not responses.create
-        mock_client.chat.completions.create.assert_called_once()
-        mock_client.responses.create.assert_not_called()
+        # Verify that responses.create was called (unified Response API approach)
+        mock_client.responses.create.assert_called_once()
+        mock_client.chat.completions.create.assert_not_called()
         
-        # Verify the Chat Completions API was called with correct parameters
-        call_args = mock_client.chat.completions.create.call_args
+        # Verify the Response API was called with correct parameters
+        call_args = mock_client.responses.create.call_args
         assert call_args[1]['model'] == 'gpt-4'
-        assert call_args[1]['messages'] == [{"role": "user", "content": "test"}]
+        assert call_args[1]['input'] == 'user: test'  # Converted from messages format
+        assert call_args[1]['include'] == ['reasoning.encrypted_content']
         assert call_args[1]['stream'] is False
         
         # Verify the result structure
-        assert result["assistant_text"] == "Chat completion result"
+        assert result["assistant_text"] == "Response API result"
 
     @pytest.mark.asyncio
     async def test_backward_compatibility(self):
-        """Test that existing code continues to work with the new response structure."""
+        """Test that existing code continues to work with the unified Response API approach."""
         
-        # Mock a response that includes reasoning using Chat Completions API
+        # Mock a response using Response API (unified approach)
         mock_client = AsyncMock()
         mock_response = MagicMock()
-        mock_choice = MagicMock()
-        mock_choice.message.content = "Test response"
-        mock_choice.message.tool_calls = None
-        mock_choice.message.reasoning = "Some reasoning"
         
-        mock_response.choices = [mock_choice]
-        mock_client.chat.completions.create.return_value = mock_response
+        # Mock the Response API response structure
+        mock_text = MagicMock()
+        mock_text.content = "Test response"
+        mock_response.text = mock_text
+        
+        mock_reasoning = MagicMock()
+        mock_reasoning.encrypted_content = "Some reasoning"
+        mock_response.reasoning = mock_reasoning
+        
+        mock_response.tool_calls = None
+        
+        mock_client.responses.create.return_value = mock_response
         
         # Call without explicit is_reasoning parameter (defaults to False)
-        result = await generate_with_openai_sync(
-            mock_client, "o1-mini", [], []
-        )
-        
-        # Test that existing code patterns still work
-        assistant_text = result["assistant_text"]  # Should not raise KeyError
-        tool_calls = result.get("tool_calls", [])  # Should work
-        reasoning = result.get("reasoning", "")  # Should work and return reasoning
-        
-        assert assistant_text == "Test response"
-        assert tool_calls == []
-        assert reasoning == "Some reasoning"
-        """Test that existing code continues to work with the new response structure."""
-        
-        # Mock a response that includes reasoning
-        mock_client = AsyncMock()
-        mock_response = MagicMock()
-        mock_choice = MagicMock()
-        mock_choice.message.content = "Test response"
-        mock_choice.message.tool_calls = None
-        mock_choice.message.reasoning = "Some reasoning"
-        
-        mock_response.choices = [mock_choice]
-        mock_client.chat.completions.create.return_value = mock_response
-        
         result = await generate_with_openai_sync(
             mock_client, "o1-mini", [], []
         )
