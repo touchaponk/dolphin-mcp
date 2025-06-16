@@ -53,7 +53,7 @@ def test_basic_functionality():
     assert "Explore" in reasoning_prompt
     assert "Execute" in reasoning_prompt
     
-    feedback_prompt = get_feedback_system_prompt("test question", "test guidelines")
+    feedback_prompt = get_feedback_system_prompt("test question", "test guidelines", all_functions=[{"name": "test_tool"}])
     print(f"Feedback prompt length: {len(feedback_prompt)}")
     assert "Sub-questions" in feedback_prompt
     

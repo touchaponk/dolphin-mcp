@@ -19,6 +19,7 @@ The project demonstrates how to:
 ## Features
 
 - **Multiple Provider Support**: Works with OpenAI, Anthropic, Ollama, and LMStudio models
+- **Reasoning Token Access**: Extract reasoning tokens from reasoning models (e.g., o1-mini) in both streaming and non-streaming modes
 - **Multi-Step Reasoning**: Advanced reasoning system with planning, code execution, and systematic problem solving
 - **Modular Architecture**: Clean separation of concerns with provider-specific modules
 - **Dual Interface**: Use as a Python library or command-line tool
@@ -337,6 +338,36 @@ result = await run_interaction(
     guidelines="Show your work step by step"
 )
 ```
+
+## Reasoning Token Access
+
+Dolphin MCP supports extracting reasoning tokens from reasoning models like OpenAI's o1-mini. When using reasoning models, you can access both the final response and the reasoning process:
+
+```python
+from dolphin_mcp.client import run_interaction
+
+# Configure for reasoning model
+model_cfg = {
+    "provider": "openai",
+    "model": "o1-mini",
+    "is_reasoning": True,
+    "reasoning_effort": "medium"
+}
+
+# Non-streaming: Access reasoning tokens
+result = await generate_with_openai(conversation, model_cfg, functions, stream=False)
+reasoning_process = result.get('reasoning', '')  # The model's reasoning process
+final_answer = result['assistant_text']          # The final response
+
+# Streaming: Get reasoning tokens as they're generated
+async for chunk in generate_with_openai(conversation, model_cfg, functions, stream=True):
+    if chunk.get('reasoning'):
+        print(f"Reasoning: {chunk['reasoning']}")
+    if chunk.get('assistant_text'):
+        print(f"Content: {chunk['assistant_text']}")
+```
+
+See `demo_reasoning_tokens.py` for complete examples.
 
 ## Demo Database
 

@@ -13,6 +13,7 @@ use pivot tables and graph to summarize the findings clearly.
 """,
 
         guidelines="""
+Bot1 and Bot2 is just the version of bot, please focus only total.
 1. Use the provided files to answer the user's query.
 2. Create the new group of root cause at least 10 groups by analyzing each incident.
 3. Re-categorize the incidents based on the new root cause groups.

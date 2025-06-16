@@ -452,7 +452,7 @@ async def log_messages_to_file(messages: List[Dict], functions: List[Dict], log_
     except Exception as e:
         logger.error(f"Error logging messages to {log_path}: {str(e)}")
 
-def process_long_fields(result: Any, max_length: int = 5000) -> Any:
+def process_long_fields(result: Any, max_length: int = 15000) -> Any:
     """
     Process tool result and replace long string fields with file references.
     
@@ -785,7 +785,7 @@ class MCPAgent:
             The final answer from the reasoning process
         """
         if not self.quiet_mode:
-            self.reasoning_config.reasoning_trace("Step 1: Generating a plan to solve the problem...")
+            self.reasoning_config.reasoning_trace("Planning...")
         
         # Generate initial plan
         initial_plan = await self.reasoner.generate_plan(
@@ -794,12 +794,12 @@ class MCPAgent:
         
         if not self.quiet_mode:
             log_planning = f"""
-====== 📝 PLAN ======
+<plan>
 {initial_plan}
-=====================
-            """
+</plan>
+"""
             self.reasoning_config.reasoning_trace(log_planning)
-            self.reasoning_config.reasoning_trace("Step 2: Starting execution loop...")
+            self.reasoning_config.reasoning_trace("Starting execution...")
         
         # Execute the reasoning loop
         success, result = await self.reasoner.execute_reasoning_loop(

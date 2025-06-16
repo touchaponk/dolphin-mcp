@@ -349,15 +349,20 @@ The Guidelines:
         self.python_context = {}
         
         for i in range(self.config.max_iterations):
-            self.config.reasoning_trace(f"Reasoning iteration {i + 1}/{self.config.max_iterations}")
+            self.config.reasoning_trace(f"Step {i + 1}:")
 
             try:
                 # Generate response
                 result = await generate_func(conversation, model_cfg, all_functions, stream=False)
                 assistant_text = result.get("assistant_text", "")
                 tool_calls = result.get("tool_calls", [])
+                reasoning_text = result.get("reasoning", "")
 
-                self.config.reasoning_trace(f"Assistant response: {assistant_text}...")
+                # Pass reasoning text to reasoning_trace if available
+                if reasoning_text:
+                    self.config.reasoning_trace(f"[REASONING] {reasoning_text}")
+                
+                self.config.reasoning_trace(f"{assistant_text}")
 
                 # Check for final answer
                 final_answer = extract_final_answer(assistant_text)
