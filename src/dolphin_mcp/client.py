@@ -463,8 +463,8 @@ def process_long_fields(tool_result: Any, max_length: int = 15000) -> Any:
     Returns:
         Modified result with long fields replaced by file references
     """
-    if not isinstance(result, (dict, list)):
-        return result
+    if not isinstance(tool_result, (dict, list)):
+        return tool_result
     
     result_is_content_text = False
     result = tool_result
