@@ -47,22 +47,18 @@ Always add the `<end_code>` tag at the end of your code block to indicate the en
 Use print() in your_python_code to retain important outputs.
 The code style should be step by step like a data analyst execute cell by cell in a jupyter notebook.
 The context of variable context will persist between multiple executions.
-You can only import library with the authorized library as follows: 
-- ["numpy", "pandas", "json", "csv", "glob", "markdown", "os"]
+You can only import library with the authorized library as follows: ["numpy", "pandas", "json", "csv", "glob", "markdown", "os"]
 The user will execute the code then show you the output of your code, and you will then use that output to continue your reasoning.
 
 For Call-Tools, please follow the format and schema in Available Tools section.
 **Choose only one of Code or Call-Tool in each step.**
 
  3. Observation: Observe the output of your code from block ```output ... ```:
-When you already complete the task, Response with block ```final_answer ... ``` format as below:
+When you need to finalize your answer, Response with block ```final_answer ... ``` format as below:
 ```final_answer
-...<Your complete explanation goes here.>...
-```
-When you lack sufficient information or if the user's request is ambiguous, use the format:
-```final_answer
-...<Your specific question for the user goes here.>...
-```
+Your Final Answer
+```<end_final_answer>
+Always add the `<end_final_answer>` tag at the end of your code block to indicate the end of the final answer.
 
 Rules:
  - ALWAYS check available tools before assuming information is unavailable.
@@ -383,17 +379,20 @@ The Guidelines:
                 tool_outputs = []
                 if tool_calls:
                     for tc in tool_calls:
+                        logger.info(f"Processing tool call: {tc.get('function', {}).get('name', 'unknown')}")
                         if tc.get("function", {}).get("name"):
                             result = await process_tool_call_func(tc, servers, quiet_mode)
                             if result:
                                 conversation.append(result)
                                 tool_outputs.append(result["content"])
+                                logger.info(f"Tool call output: {result['content']}")
                 
                 # Execute Python code if present
                 code_blocks = extract_code_blocks(assistant_text)
                 code_outputs = []
                 
                 if code_blocks and self.config.enable_code_execution:
+                    logger.info(f"Executing {code_blocks}")
                     for code in code_blocks:
                         self.config.reasoning_trace(f"Executing code: {code}\n...")
                         output = python_interpreter(code, self.python_context)

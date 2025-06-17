@@ -463,8 +463,8 @@ def process_long_fields(tool_result: Any, max_length: int = 15000) -> Any:
     Returns:
         Modified result with long fields replaced by file references
     """
-    if not isinstance(result, (dict, list)):
-        return result
+    if not isinstance(tool_result, (dict, list)):
+        return tool_result
     
     result_is_content_text = False
     result = tool_result
@@ -509,7 +509,7 @@ def process_long_fields(tool_result: Any, max_length: int = 15000) -> Any:
             if isinstance(obj, str) and len(obj) > max_length:
                 preview = obj[:200] + "..." if len(obj) > 200 else obj
                 logger.info(f"Field too long, replacing with file reference: {preview}...<content_written_to_file:{temp_file_path}>")
-                return f"{preview}\n\n<content_written_to_file:{temp_file_path}>"
+                return f"{preview}\n\n<content_written_to_local_file:{temp_file_path}>"
             elif isinstance(obj, dict):
                 return {k: replace_long_fields(v) for k, v in obj.items()}
             elif isinstance(obj, list):
