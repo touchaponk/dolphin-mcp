@@ -23,7 +23,9 @@ async def generate_with_openai_stream(client: AsyncOpenAI, model_name: str, conv
             for func in formatted_functions:
                 tools.append({
                     "type": "function",
-                    "function": func
+                    "name": func["name"],
+                    "description": func["description"],
+                    "parameters": func["parameters"]
                 })
         
         response = await client.responses.create(
@@ -116,7 +118,9 @@ async def generate_with_openai_sync(client: AsyncOpenAI, model_name: str, conver
             for func in formatted_functions:
                 tools.append({
                     "type": "function",
-                    "function": func
+                    "name": func["name"],
+                    "description": func["description"],
+                    "parameters": func["parameters"]
                 })
         
         response = await client.responses.create(
