@@ -20,6 +20,7 @@ from .providers.anthropic import generate_with_anthropic
 from .providers.ollama import generate_with_ollama
 from .providers.lmstudio import generate_with_lmstudio
 from .reasoning import MultiStepReasoner, ReasoningConfig
+from .auth import get_auth_provider
 
 logger = logging.getLogger("dolphin_mcp")
 logging.getLogger(__name__).setLevel(logging.DEBUG)  # Set default logging level to DEBUG
@@ -717,10 +718,24 @@ class MCPAgent:
                     if not quiet_mode:
                         print(f"[WARN] Server {server_name} has transport 'sse' but no URL specified")
                     continue
+                
+                # Handle authentication provider
+                headers = conf.get("headers", {})
+                if "provider" in conf:
+                    try:
+                        auth_provider = get_auth_provider(conf["provider"], conf)
+                        headers = await auth_provider.inject_auth_headers(headers)
+                        if not quiet_mode:
+                            print(f"[AUTH] {server_name} using {conf['provider']} authentication")
+                    except Exception as e:
+                        if not quiet_mode:
+                            print(f"[WARN] {server_name} auth provider error: {e}")
+                        logger.warning(f"Auth provider error for {server_name}: {e}")
+                
                 client = SSEMCPClient(
                     server_name=server_name, 
                     url=conf["url"],
-                    headers=conf.get("headers")
+                    headers=headers
                 )
             else:
                 # Local process-based server (stdio transport)
