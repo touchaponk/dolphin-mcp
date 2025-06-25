@@ -15,13 +15,28 @@ from typing import Dict, List, Optional, Any, Tuple, AsyncGenerator, Union
 logger = logging.getLogger("dolphin_mcp.reasoning")
 
 
-def get_reasoning_system_prompt() -> str:
+def get_reasoning_system_prompt(all_functions: List[Dict] = None) -> str:
     """
     Get the system prompt for the reasoning LLM that guides multi-step execution.
     
     Based on the amity_reasoning_llm_system_prompt from the example code.
     """
-    return """
+    tool_instructions = "Please follow the format and schema in Available Tools section."
+    if all_functions:
+        tool_instructions = f"""Please use the following format.
+
+<tool_code>
+{{
+  \"name\": \"server_name_tool_name\"
+}}
+</tool_code>
+
+Available Tools are provided below in JSON format.
+```json
+{ [ {"name": func["name"], "description": func["description"] } for func in all_functions] }\n
+```"""
+
+    return f"""
 You are an advanced reasoning agent that follows a structured approach to solve complex tasks using available tools.
 
 For each task you try to solve you will follow a hierarchy of workflows: a root-level task workflow and a leaf-level step workflow.
@@ -34,31 +49,35 @@ Root Task Workflow:
     3.  Execute: Execute and operational such plan you have drafted. If while executing such plan, it turns out to be unsuccessful start over from the 'Explore' step.
     4.  Conclude: Based on the output of your executed plan, distil all findings into an answer for the proposed task to solve.
 
-In order to advance through the Root Task Workflow you will need to perform a series of steps, for each step you take you must follow this workflow: 'Thought:' → 'Code/Call-Tool:' → 'Observation:'.
+In order to advance through the Root Task Workflow you will need to perform a series of steps, for each step you take you must follow this workflow: 'Thought:' → 'Action:' → 'Observation:'.
 Step Workflow:
- 1. Thought: Explain your reasoning and the approach you'll use.
- 2. Code/Call-Tool: Write Python code or call-tool
-For python code please write with the following format:
-Code:
-```python
-your_python_code
-```<end_code>
-Always add the `<end_code>` tag at the end of your code block to indicate the end of the code.
-Use print() in your_python_code to retain important outputs.
-The code style should be step by step like a data analyst execute cell by cell in a jupyter notebook.
-The context of variable context will persist between multiple executions.
-You can only import library with the authorized library as follows: ["numpy", "pandas", "json", "csv", "glob", "markdown", "os"]
-The user will execute the code then show you the output of your code, and you will then use that output to continue your reasoning.
+ 1. Thought: Explain your reasoning and the approach you'll use for the next action.
+ 2. Action: Based on your thought, you must choose **one and only one** of the following actions in each step:
+    - To execute Python code, use the `<python>` tag.
+    - To call a tool, use the `<tool_code>` tag.
+    - To provide the final answer when the task is complete, use the `<final_answer>` tag.
 
-For Call-Tools, please follow the format and schema in Available Tools section.
-**Choose only one of Code or Call-Tool in each step.**
+    **Action Formats:**
 
- 3. Observation: Observe the output of your code from block ```output ... ```:
-When you need to finalize your answer, Response with block ```final_answer ... ``` format as below:
-```final_answer
-Your Final Answer
-```<end_final_answer>
-Always add the `<end_final_answer>` tag at the end of your code block to indicate the end of the final answer.
+    **1. Python Code:**
+    <python>
+    your_python_code
+    </python>
+    - Use `print()` in your code to retain important outputs.
+    - The code style should be step by step like a data analyst execute cell by cell in a jupyter notebook.
+    - The context of variables will persist between multiple executions.
+    - You can only import library with the authorized library as follows: Any.
+    - The user will execute the code then show you the output of your code, and you will then use that output to continue your reasoning.
+
+    **2. Tool Call:**
+    {tool_instructions}
+
+    **3. Final Answer:**
+    <final_answer>
+    ...<Your complete explanation goes here.>...
+    </final_answer>
+
+ 3. Observation: After you provide a `<python>` or `<tool_code>` action, you will receive an observation from the system containing the output. Use this to inform your next step. If you provide `<final_answer>`, the process ends.
 
 Rules:
  - ALWAYS check available tools before assuming information is unavailable.
@@ -70,6 +89,9 @@ Rules:
  - Never create any notional variables in our code, as having these in your logs will derail you from the true variables.
  - Imports and variables persist between executions.
  - Solve the task yourself, don't just provide instructions.
+ - Mostly of tools call is API, so make sure you utilize the Call-Tool and Code together to maximize the efficiency of execution.
+ - If user didn't mentioned to allow you to ask back to the user in the guidelines, you should complete the task by yourself.
+ - Choose only one action per step, either a tool call, Python code execution, or final answer.
  """
 
 
@@ -117,7 +139,13 @@ Solution Approach:
 - Step 2: ...
 - Step 3: ...
 
-Available tools: \n{json.dumps([f["name"] for f in all_functions], indent=2)}\n 
+Available tools: 
+{ [ {"name": func["name"], "description": func["description"] } for func in all_functions] }\n
+
+Common Tools, The most common that you can use together with the available tools.
+Python Interpreter:
+- name: "python_interpreter", 
+- description: "Execute Python code in a persistent context"
 """
     else:
         return """Based on the current interaction and progress, provide feedback on:
@@ -137,13 +165,13 @@ def get_user_prompt_initial(question: str, answer_guideline: str, feedback: str)
     Based on user_prompt_initial from the example code.
     """
     return f"""
-Here is the question you need to answer:
+Here is the user enquiry:
 - {question}
 
-Here is the guidelines you must follow when answering the question above:
+Here is the guidelines:
 - {answer_guideline}
 
-Here is the summary context and strategy from planning analysis:
+Here is the summary context and plan from human expert:
 ```plan
 {feedback}
 ```
@@ -203,7 +231,7 @@ def extract_code_blocks(text: str) -> List[str]:
     Returns:
         List of code strings
     """
-    code_matches = re.findall(r'```python\s*(.*?)\s*```', text, re.DOTALL | re.IGNORECASE)
+    code_matches = re.findall(r'<python.*?>\s*(.*?)\s*</python>', text, re.DOTALL | re.IGNORECASE)
     # Clean up indentation and return
     cleaned_code = []
     for code in code_matches:
@@ -212,6 +240,27 @@ def extract_code_blocks(text: str) -> List[str]:
         cleaned = textwrap.dedent(code).strip()
         cleaned_code.append(cleaned)
     return cleaned_code
+
+
+def extract_tool_calls(text: str) -> List[Dict]:
+    """
+    Extract tool call blocks from text.
+
+    Args:
+        text: Text containing tool call blocks
+
+    Returns:
+        List of tool call dictionaries
+    """
+    tool_code_matches = re.findall(r'<tool_code.*?>\s*(.*?)\s*</tool_code>', text, re.DOTALL | re.IGNORECASE)
+    extracted_calls = []
+    for match in tool_code_matches:
+        try:
+            tool_call = json.loads(match)
+            extracted_calls.append(tool_call)
+        except json.JSONDecodeError:
+            logger.warning(f"Could not parse tool call json: {match}")
+    return extracted_calls
 
 
 def extract_final_answer(text: str) -> Optional[str]:
@@ -224,15 +273,15 @@ def extract_final_answer(text: str) -> Optional[str]:
     Returns:
         Final answer string if found, None otherwise
     """
-    final_answer_matches = re.findall(r'```final_answer\s*(.*?)\s*```', text, re.DOTALL | re.IGNORECASE)
-    ask_matches = re.findall(r'<ask>\s*(.*?)\s*</ask>', text, re.DOTALL | re.IGNORECASE)
-    wait_matches = re.findall(r'<wait>\s*(.*?)\s*</wait>', text, re.DOTALL | re.IGNORECASE)
+    final_answer_matches = re.findall(r'<final_answer.*?>\s*(.*?)\s*</final_answer>', text, re.DOTALL | re.IGNORECASE)
+    ask_matches = re.findall(r'<ask.*?>\s*(.*?)\s*</ask>', text, re.DOTALL | re.IGNORECASE)
+    monitor_matches = re.findall(r'<monitor.*?>\s*(.*?)\s*</monitor>', text, re.DOTALL | re.IGNORECASE)
     if final_answer_matches:
         return final_answer_matches[-1].strip()
     elif ask_matches:
         return ask_matches[-1].strip()
-    elif wait_matches:
-        return wait_matches[-1].strip()
+    elif monitor_matches:
+        return monitor_matches[-1].strip()
     return None
 
 
@@ -247,7 +296,7 @@ class ReasoningConfig:
                  reasoning_trace: Any = None
                  ):
         self.max_iterations = max_iterations
-        self.enable_planning = enable_planning  
+        self.enable_planning = enable_planning
         self.enable_code_execution = enable_code_execution
         self.planning_model = planning_model  # If None, use same model as main reasoning
         self.reasoning_trace = reasoning_trace
@@ -263,6 +312,47 @@ class MultiStepReasoner:
         self.config = config or ReasoningConfig()
         self.python_context: Dict[str, Any] = {}
         
+    async def _get_tool_args_from_llm(self, tool_name: str, tool_def: Dict, conversation: List[Dict], generate_func, model_cfg: Dict) -> Dict:
+        """
+        Asks the LLM to generate arguments for a tool call.
+        """
+        self.config.reasoning_trace(f"Asking LLM to generate arguments for tool: {tool_name}")
+
+        prompt_content = f"""You have decided to call the tool `{tool_name}`.
+Based on the conversation history, please provide the arguments for this tool.
+Tool Description: {tool_def.get('description')}
+Tool Schema:
+```json
+{json.dumps(tool_def.get('parameters', {}), indent=2)}
+```
+Please provide *only* the JSON object for the arguments, without any other text or explanation.
+"""
+
+        # Use a copy of the conversation to avoid polluting the main reasoning flow
+        args_conversation = list(conversation)
+        args_conversation.append({"role": "user", "content": prompt_content})
+
+        # Call LLM
+        args_result = await generate_func(args_conversation, model_cfg, [], stream=False)
+        args_text = args_result.get("assistant_text", "").strip()
+
+        self.config.reasoning_trace(f"LLM generated arguments: {args_text}")
+
+        # Parse the arguments
+        try:
+            # The model might return the JSON inside a code block.
+            match = re.search(r'```(json)?\s*(.*?)\s*```', args_text, re.DOTALL)
+            if match:
+                args_text = match.group(2)
+
+            parsed_args = json.loads(args_text)
+            if not isinstance(parsed_args, dict):
+                raise json.JSONDecodeError("Not a JSON object", args_text, 0)
+            return parsed_args
+        except (json.JSONDecodeError, AttributeError) as e:
+            self.config.reasoning_trace(f"Failed to parse arguments for {tool_name}: {e}")
+            return {"error": "Failed to generate valid JSON arguments.", "raw_response": args_text}
+
     async def generate_plan(self, question: str, guidelines: str, generate_func, model_cfg: Dict, all_functions: List[Dict]) -> str:
         """
         Generate an initial plan for solving the problem.
@@ -299,9 +389,9 @@ The Guidelines:
         ]
         
         try:
-            planning_result = await generate_func(planning_conversation, model_cfg, all_functions, stream=False)
+            planning_result = await generate_func(planning_conversation, model_cfg, [], stream=False)
             plan = planning_result.get("assistant_text", "Failed to generate plan")
-            logger.info(f"Generated plan: {plan[:200]}...")
+            print(f"Generated plan: {plan}...")
             return plan
         except Exception as e:
             logger.error(f"Error generating plan: {str(e)}")
@@ -333,7 +423,7 @@ The Guidelines:
         conversation = [
             {
                 "role": "developer" if is_reasoning else "system",
-                "content": get_reasoning_system_prompt()
+                "content": get_reasoning_system_prompt(all_functions=all_functions)
             },
             {
                 "role": "user", 
@@ -343,54 +433,74 @@ The Guidelines:
         
         # Reset python context for this reasoning session
         self.python_context = {}
-        
+
         for i in range(self.config.max_iterations):
             self.config.reasoning_trace(f"Step {i + 1}:")
 
             try:
                 # Generate response
-                result = await generate_func(conversation, model_cfg, all_functions, stream=False)
+                result = await generate_func(conversation, model_cfg, [], stream=False)
                 assistant_text = result.get("assistant_text", "")
-                tool_calls = result.get("tool_calls", [])
-                reasoning_text = result.get("reasoning", "")
-
-                # Pass reasoning text to reasoning_trace if available
-                if reasoning_text:
-                    self.config.reasoning_trace(f"[REASONING] {reasoning_text}")
-                
-                self.config.reasoning_trace(f"{assistant_text}")
-
-                # Check for final answer
-                final_answer = extract_final_answer(assistant_text)
-                if final_answer:
-                    self.config.reasoning_trace(f"Final answer detected")
-                    return True, final_answer
+                self.config.reasoning_trace(f"[ASSISTANT] {assistant_text}")
                 
                 # Add assistant message to conversation
                 assistant_msg = {"role": "assistant", "content": assistant_text}
-                if tool_calls:
-                    # Add type field to each tool call
-                    for tc in tool_calls:
-                        tc["type"] = "function"
-                    assistant_msg["tool_calls"] = tool_calls
                 conversation.append(assistant_msg)
-                
+
                 # Process tool calls if any
-                tool_outputs = []
+                tool_calls = extract_tool_calls(assistant_text)
                 if tool_calls:
-                    for tc in tool_calls:
-                        logger.info(f"Processing tool call: {tc.get('function', {}).get('name', 'unknown')}")
-                        if tc.get("function", {}).get("name"):
-                            result = await process_tool_call_func(tc, servers, quiet_mode)
-                            if result:
-                                conversation.append(result)
-                                tool_outputs.append(result["content"])
-                                logger.info(f"Tool call output: {result['content']}")
-                
+                    for tc_data in tool_calls:
+                        self.config.reasoning_trace(f"Processing tool call: {tc_data.get('name', 'unknown')}")
+                        tool_name = tc_data.get("name")
+                        if not tool_name:
+                            continue
+
+                        # Find the full function definition to validate parameters
+                        full_function_def = next((f for f in all_functions if f['name'] == tool_name), None)
+
+                        if not full_function_def:
+                            error_content = f"Error calling tool {tool_name}: Tool not found."
+                            self.config.reasoning_trace(error_content)
+                            conversation.append(
+                                {"role": "user", "content": f"<tool_output>\n{error_content}\n</tool_output>"})
+                            continue
+
+                        # Generate arguments for the tool call using the LLM
+                        tool_args = await self._get_tool_args_from_llm(
+                            tool_name, full_function_def, conversation, generate_func, model_cfg
+                        )
+
+                        if "error" in tool_args:
+                            error_content = f"Error calling tool {tool_name}: {tool_args['error']} Raw response: {tool_args['raw_response']}"
+                            self.config.reasoning_trace(error_content)
+                            conversation.append(
+                                {"role": "user", "content": f"<tool_output>\n{error_content}\n</tool_output>"})
+                            continue
+
+                        # Validate parameters
+                        schema = full_function_def.get("parameters", {})
+                        required_params = schema.get("required", [])
+                        missing_params = [p for p in required_params if p not in tool_args]
+                        if missing_params:
+                            error_content = f"Error calling tool {tool_name}: Missing required parameters after generation: {', '.join(missing_params)}"
+                            self.config.reasoning_trace(error_content)
+                            conversation.append(
+                                {"role": "user", "content": f"<tool_output>\n{error_content}\n</tool_output>"})
+                            continue
+
+                        # Adapt to the format expected by process_tool_call_func
+                        fake_tc = {"id": f"call_{tool_name.replace('.', '_')}_{i}", "function": {"name": tool_name, "arguments": json.dumps(tool_args) }}
+                        result = await process_tool_call_func(fake_tc, servers, quiet_mode)
+                        if result and 'content' in result:
+                            self.config.reasoning_trace(f"Tool call output: {result['content']}")
+                            conversation.append({"role": "user", "content": f"<tool_output>\n{result['content']}\n</tool_output>"})
+                    continue
+
                 # Execute Python code if present
                 code_blocks = extract_code_blocks(assistant_text)
                 code_outputs = []
-                
+
                 if code_blocks and self.config.enable_code_execution:
                     logger.info(f"Executing {code_blocks}")
                     for code in code_blocks:
@@ -404,14 +514,25 @@ The Guidelines:
                     combined_output = "\n".join(code_outputs)
                     conversation.append({
                         "role": "user",
-                        "content": f"```output\n{combined_output}\n```"
+                        "content": f"<code_output>\n{combined_output}\n</code_output>"
                     })
+                    continue
                 
                 # If no code and no tool calls, we might be stuck
                 if not code_blocks and not tool_calls:
-                    self.config.reasoning_trace(f"No code execution or tool calls detected, might be stuck")
-                    # Continue anyway, the model might be thinking
-                
+                    no_code_output_msg = f"""No code execution or tool calls detected"""
+                    self.config.reasoning_trace(no_code_output_msg)
+                    conversation.append({"role": "user", "content": f"<no_code_output>{no_code_output_msg}</no_code_output>"})
+
+                conversation.append({"role": "user", "content": f"""
+Based on the current stage and the plan from human expert, please provide the next step or final answer.
+"""})
+                # Check for final answer
+                final_answer = extract_final_answer(assistant_text)
+                if final_answer:
+                    self.config.reasoning_trace(f"Final answer detected")
+                    return True, final_answer
+
             except Exception as e:
                 self.config.reasoning_trace(f"Error in reasoning iteration {i + 1}: {str(e)}")
                 return False, f"Error during reasoning: {str(e)}"

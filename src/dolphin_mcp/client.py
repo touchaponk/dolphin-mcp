@@ -547,10 +547,10 @@ async def process_tool_call(tc: Dict, servers: Dict[str, MCPClient], quiet_mode:
         }
 
     srv_name, tool_name = parts
-    if not quiet_mode:
-        print(f"\nView result from {tool_name} from {srv_name} {json.dumps(func_args)}")
-    else:
-        print(f"\nProcessing tool call...{tool_name}")
+    # if not quiet_mode:
+    #     print(f"\nView result from {tool_name} from {srv_name} {json.dumps(func_args)}")
+    # else:
+    #     print(f"\nProcessing tool call...{tool_name}")
 
     if srv_name not in servers:
         return {
@@ -580,8 +580,8 @@ async def process_tool_call(tc: Dict, servers: Dict[str, MCPClient], quiet_mode:
                 }
 
     result = await servers[srv_name].call_tool(tool_name, func_args)
-    if not quiet_mode:
-        print(json.dumps(result, indent=2))
+    # if not quiet_mode:
+    #     print(json.dumps(result, indent=2))
 
     # Process the result to handle long fields
     processed_result = process_long_fields(result)
@@ -813,11 +813,7 @@ class MCPAgent:
         )
         
         if not self.quiet_mode:
-            log_planning = f"""
-<plan>
-{initial_plan}
-</plan>
-"""
+            log_planning = f"""\n{initial_plan}"""
             self.reasoning_config.reasoning_trace(log_planning)
             self.reasoning_config.reasoning_trace("Starting execution...")
         
