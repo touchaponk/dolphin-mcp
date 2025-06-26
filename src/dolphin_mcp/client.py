@@ -806,26 +806,16 @@ class MCPAgent:
         """
         if not self.quiet_mode:
             self.reasoning_config.reasoning_trace("<think>Planning...</think>")
-<<<<<<< add-think-tag
-        
-=======
 
->>>>>>> main
         # Generate initial plan
         initial_plan = await self.reasoner.generate_plan(
             user_query, guidelines, generate_text, self.chosen_model, self.all_functions
         )
         
         if not self.quiet_mode:
-<<<<<<< add-think-tag
-            log_planning = f"""<think>\n{initial_plan}</think>"""
-            self.reasoning_config.reasoning_trace(log_planning)
-            self.reasoning_config.reasoning_trace("<think>Starting execution...</think>")
-=======
             log_planning = f"""<plan>{initial_plan}</plan>"""
             self.reasoning_config.reasoning_trace(log_planning)
             # self.reasoning_config.reasoning_trace("Starting execution...")
->>>>>>> main
         
         # Execute the reasoning loop
         success, result = await self.reasoner.execute_reasoning_loop(
@@ -833,19 +823,11 @@ class MCPAgent:
             generate_text, self.chosen_model, self.all_functions,
             process_tool_call, self.servers, self.quiet_mode
         )
-        
-<<<<<<< add-think-tag
-        if success:
-            if not self.quiet_mode:
-                self.reasoning_config.reasoning_trace("<think>\n====== ✅ FINAL ANSWER FOUND ======</think>")
-            return result
-        else:
-=======
+
         if not success:
             # if not self.quiet_mode:
             #     self.reasoning_config.reasoning_trace("\n====== ✅ FINAL ANSWER FOUND ======")
             # return result
->>>>>>> main
             if not self.quiet_mode:
                 self.reasoning_config.reasoning_trace(f"<think>\n====== ❌ ERROR OR MAX ITERATIONS ======\n{result}\n</think>")
             return result
