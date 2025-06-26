@@ -805,7 +805,7 @@ class MCPAgent:
             The final answer from the reasoning process
         """
         if not self.quiet_mode:
-            self.reasoning_config.reasoning_trace("Planning...")
+            self.reasoning_config.reasoning_trace("<think>Planning...</think>")
         
         # Generate initial plan
         initial_plan = await self.reasoner.generate_plan(
@@ -813,9 +813,9 @@ class MCPAgent:
         )
         
         if not self.quiet_mode:
-            log_planning = f"""\n{initial_plan}"""
+            log_planning = f"""<think>\n{initial_plan}</think>"""
             self.reasoning_config.reasoning_trace(log_planning)
-            self.reasoning_config.reasoning_trace("Starting execution...")
+            self.reasoning_config.reasoning_trace("<think>Starting execution...</think>")
         
         # Execute the reasoning loop
         success, result = await self.reasoner.execute_reasoning_loop(
@@ -826,19 +826,19 @@ class MCPAgent:
         
         if success:
             if not self.quiet_mode:
-                self.reasoning_config.reasoning_trace("\n====== ✅ FINAL ANSWER FOUND ======")
+                self.reasoning_config.reasoning_trace("<think>\n====== ✅ FINAL ANSWER FOUND ======</think>")
             return result
         else:
             if not self.quiet_mode:
-                self.reasoning_config.reasoning_trace(f"\n====== ❌ ERROR OR MAX ITERATIONS ======\n{result}")
+                self.reasoning_config.reasoning_trace(f"<think>\n====== ❌ ERROR OR MAX ITERATIONS ======\n{result}\n</think>")
             return result
 
-    async def prompt(self, user_query, use_reasoning: bool = None, guidelines: str = ""):
+    async def prompt(self, user_query: Union[str, List[Dict]], use_reasoning: bool = None, guidelines: str = ""):
         """
         Prompt the specified model along with the configured MCP servers.
 
         Args:
-            user_query: The user's query
+            user_query: The user's query (can be a string for text-only, or a list of content parts for multimodal).
             use_reasoning: Whether to use multi-step reasoning. If None, uses config default.
             guidelines: Answer guidelines (used with reasoning mode)
 
