@@ -823,13 +823,13 @@ class MCPAgent:
             generate_text, self.chosen_model, self.all_functions,
             process_tool_call, self.servers, self.quiet_mode
         )
-        
+
         if not success:
             # if not self.quiet_mode:
             #     self.reasoning_config.reasoning_trace("\n====== ✅ FINAL ANSWER FOUND ======")
             # return result
             if not self.quiet_mode:
-                self.reasoning_config.reasoning_trace(f"\n====== ❌ ERROR OR MAX ITERATIONS ======\n{result}")
+                self.reasoning_config.reasoning_trace(f"<think>\n====== ❌ ERROR OR MAX ITERATIONS ======\n{result}\n</think>")
             return result
 
     async def prompt(self, user_query, use_reasoning: bool = None, guidelines: str = ""):
