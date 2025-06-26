@@ -805,17 +805,17 @@ class MCPAgent:
             The final answer from the reasoning process
         """
         if not self.quiet_mode:
-            self.reasoning_config.reasoning_trace("Planning...")
-        
+            self.reasoning_config.reasoning_trace("<think>Planning...</think>")
+
         # Generate initial plan
         initial_plan = await self.reasoner.generate_plan(
             user_query, guidelines, generate_text, self.chosen_model, self.all_functions
         )
         
         if not self.quiet_mode:
-            log_planning = f"""\n{initial_plan}"""
+            log_planning = f"""<plan>{initial_plan}</plan>"""
             self.reasoning_config.reasoning_trace(log_planning)
-            self.reasoning_config.reasoning_trace("Starting execution...")
+            # self.reasoning_config.reasoning_trace("Starting execution...")
         
         # Execute the reasoning loop
         success, result = await self.reasoner.execute_reasoning_loop(
@@ -824,11 +824,10 @@ class MCPAgent:
             process_tool_call, self.servers, self.quiet_mode
         )
         
-        if success:
-            if not self.quiet_mode:
-                self.reasoning_config.reasoning_trace("\n====== ✅ FINAL ANSWER FOUND ======")
-            return result
-        else:
+        if not success:
+            # if not self.quiet_mode:
+            #     self.reasoning_config.reasoning_trace("\n====== ✅ FINAL ANSWER FOUND ======")
+            # return result
             if not self.quiet_mode:
                 self.reasoning_config.reasoning_trace(f"\n====== ❌ ERROR OR MAX ITERATIONS ======\n{result}")
             return result
