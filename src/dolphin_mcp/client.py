@@ -832,12 +832,12 @@ class MCPAgent:
                 self.reasoning_config.reasoning_trace(f"<think>\n====== ❌ ERROR OR MAX ITERATIONS ======\n{result}\n</think>")
             return result
 
-    async def prompt(self, user_query: Union[str, List[Dict]], use_reasoning: bool = None, guidelines: str = ""):
+    async def prompt(self, user_query, use_reasoning: bool = None, guidelines: str = ""):
         """
         Prompt the specified model along with the configured MCP servers.
 
         Args:
-            user_query: The user's query (can be a string for text-only, or a list of content parts for multimodal).
+            user_query: The user's query
             use_reasoning: Whether to use multi-step reasoning. If None, uses config default.
             guidelines: Answer guidelines (used with reasoning mode)
 
