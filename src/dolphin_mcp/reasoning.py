@@ -275,13 +275,10 @@ def extract_final_answer(text: str) -> Optional[str]:
     """
     final_answer_matches = re.findall(r'<final_answer.*?>\s*(.*?)\s*</final_answer>', text, re.DOTALL | re.IGNORECASE)
     ask_matches = re.findall(r'<ask.*?>\s*(.*?)\s*</ask>', text, re.DOTALL | re.IGNORECASE)
-    monitor_matches = re.findall(r'<monitor.*?>\s*(.*?)\s*</monitor>', text, re.DOTALL | re.IGNORECASE)
     if final_answer_matches:
         return final_answer_matches[-1].strip()
     elif ask_matches:
         return ask_matches[-1].strip()
-    elif monitor_matches:
-        return monitor_matches[-1].strip()
     return None
 
 
