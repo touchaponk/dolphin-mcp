@@ -274,11 +274,10 @@ def extract_final_answer(text: str) -> Optional[str]:
         Final answer string if found, None otherwise
     """
     final_answer_matches = re.findall(r'<final_answer.*?>\s*(.*?)\s*</final_answer>', text, re.DOTALL | re.IGNORECASE)
-    ask_matches = re.findall(r'<ask.*?>\s*(.*?)\s*</ask>', text, re.DOTALL | re.IGNORECASE)
+    # ask_matches = re.findall(r'<ask.*?>\s*(.*?)\s*</ask>', text, re.DOTALL | re.IGNORECASE)
+    # monitor_matches = re.findall(r'<monitor.*?>\s*(.*?)\s*</monitor>', text, re.DOTALL | re.IGNORECASE)
     if final_answer_matches:
         return final_answer_matches[-1].strip()
-    elif ask_matches:
-        return ask_matches[-1].strip()
     return None
 
 
@@ -438,7 +437,7 @@ The Guidelines:
                 # Generate response
                 result = await generate_func(conversation, model_cfg, [], stream=False)
                 assistant_text = result.get("assistant_text", "")
-                self.config.reasoning_trace(f"<think>[ASSISTANT] {assistant_text}</think>")
+                self.config.reasoning_trace(f"<think>{assistant_text}</think>")
                 
                 # Add assistant message to conversation
                 assistant_msg = {"role": "assistant", "content": assistant_text}
@@ -518,6 +517,7 @@ The Guidelines:
                 # If no code and no tool calls, we might be stuck
                 if not code_blocks and not tool_calls:
                     no_code_output_msg = f"""<think>No code execution or tool calls detected</think>"""
+                    # self.config.reasoning_trace(no_code_output_msg)
                     conversation.append({"role": "user", "content": f"<no_code_output>{no_code_output_msg}</no_code_output>"})
 
                 conversation.append({"role": "user", "content": f"""
@@ -526,12 +526,13 @@ Based on the current stage and the plan from human expert, please provide the ne
                 # Check for final answer
                 final_answer = extract_final_answer(assistant_text)
                 if final_answer:
+                    self.config.reasoning_trace(f"<final_answer>{final_answer}</final_answer>")
                     return True, f"<final_answer>{final_answer}</final_answer>"
 
             except Exception as e:
                 self.config.reasoning_trace(f"<think>Error in reasoning iteration {i + 1}: {str(e)}</think>")
-                return False, f"<monitor>Error during reasoning: {str(e)}</monitor>"
+                return False, f"<think>Error during reasoning: {str(e)}</think>"
         
         # If we reach here, we've hit max iterations without a final answer
-        self.config.reasoning_trace(f"<monitor>Reached max iterations ({self.config.max_iterations}) without final answer</monitor>")
+        self.config.reasoning_trace(f"<final_answer>Reached max iterations ({self.config.max_iterations}) without final answer</final_answer>")
         return False, f"Process stopped after reaching maximum iterations ({self.config.max_iterations})."
