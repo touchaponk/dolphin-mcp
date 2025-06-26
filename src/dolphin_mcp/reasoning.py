@@ -521,7 +521,6 @@ The Guidelines:
                 # If no code and no tool calls, we might be stuck
                 if not code_blocks and not tool_calls:
                     no_code_output_msg = f"""<think>No code execution or tool calls detected</think>"""
-                    self.config.reasoning_trace(no_code_output_msg)
                     conversation.append({"role": "user", "content": f"<no_code_output>{no_code_output_msg}</no_code_output>"})
 
                 conversation.append({"role": "user", "content": f"""
@@ -530,7 +529,6 @@ Based on the current stage and the plan from human expert, please provide the ne
                 # Check for final answer
                 final_answer = extract_final_answer(assistant_text)
                 if final_answer:
-                    self.config.reasoning_trace(f"<think>Final answer detected</think>")
                     return True, f"<final_answer>{final_answer}</final_answer>"
 
             except Exception as e:
