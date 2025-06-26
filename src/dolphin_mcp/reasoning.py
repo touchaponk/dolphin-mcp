@@ -53,9 +53,9 @@ In order to advance through the Root Task Workflow you will need to perform a se
 Step Workflow:
  1. Thought: Explain your reasoning and the approach you'll use for the next action.
  2. Action: Based on your thought, you must choose **one and only one** of the following actions in each step:
-    - To execute Python code, use the `<python>` tag.
-    - To call a tool, use the `<tool_code>` tag.
-    - To provide the final answer when the task is complete, use the `<final_answer>` tag.
+    - To execute Python code, use the `<python>...</python>` tag.
+    - To call a tool, use the `<tool_code>...</tool_code>` tag.
+    - To provide the final answer when the task is complete, use the `<final_answer>...</final_answer>` tag.
 
     **Action Formats:**
 
@@ -77,7 +77,7 @@ Step Workflow:
     ...<Your complete explanation goes here.>...
     </final_answer>
 
- 3. Observation: After you provide a `<python>` or `<tool_code>` action, you will receive an observation from the system containing the output. Use this to inform your next step. If you provide `<final_answer>`, the process ends.
+ 3. Observation: After you provide a `<python>...</python>` or `<tool_code>...</tool_code>` action, you will receive an observation from the system containing the output. Use this to inform your next step. If you provide `<final_answer>...</final_answer>`, the process ends.
 
 Rules:
  - ALWAYS check available tools before assuming information is unavailable.
@@ -524,7 +524,7 @@ The Guidelines:
                     conversation.append({"role": "user", "content": f"<no_code_output>{no_code_output_msg}</no_code_output>"})
 
                 conversation.append({"role": "user", "content": f"""
-Based on the current stage and the plan from human expert, please provide the next step or final answer.
+Based on the current stage and the plan from human expert, please provide the next step or final answer with "<final_answer>...</final_answer>".
 """})
                 # Check for final answer
                 final_answer = extract_final_answer(assistant_text)
